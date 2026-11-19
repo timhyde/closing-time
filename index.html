@@ -307,7 +307,7 @@ body.nohints .status{min-height:0}
       <button class="skin" id="role-teacher" type="button" aria-pressed="false">I'm the teacher</button>
     </div>
     <form id="join-form" autocomplete="off">
-      <label class="field" id="f-name">Your name <input id="j-name" maxlength="24"></label>
+      <label class="field" id="f-name">Screen name <input id="j-name" maxlength="24" placeholder="anything you like"></label>
       <label class="field">Session code <input id="j-code" maxlength="20" autocapitalize="none" autocorrect="off" spellcheck="false"></label>
       <label class="field" id="f-pass" hidden>Teacher password <input id="j-pass" type="password"></label>
       <div class="err" id="join-error" role="alert"></div>
@@ -341,6 +341,7 @@ body.nohints .status{min-height:0}
         <label>Number of doors <input type="number" id="s-doors" min="1" max="12"></label>
         <label>Clicks available <input type="number" id="s-clicks" min="1"></label>
         <label>Time limit in seconds (0 = none) <input type="number" id="s-limit" min="0" step="any"></label>
+        <label>Planned tries of this round (teacher view wording only) <input type="number" id="s-tries" min="1"></label>
         <label>Last door left: seconds between automatic clicks (0 = off) <input type="number" id="s-auto" min="0" step="any"></label>
         <label>n: ticks a door stays fully open <input type="number" id="s-n" min="0"></label>
         <label>m: ticks it takes to close <input type="number" id="s-m" min="0"></label>
@@ -420,6 +421,7 @@ body.nohints .status{min-height:0}
       <p id="t-status" style="margin:0 0 12px;font-weight:800"></p>
       <div class="row">
         <button class="go" id="t-main" type="button"></button>
+        <button class="plain" id="t-extra" type="button" hidden></button>
         <button class="plain" id="t-reveal" type="button"></button>
       </div>
     </div>
@@ -451,7 +453,7 @@ body.nohints .status{min-height:0}
     <div class="card">
       <div id="t-slot"></div>
       <div style="margin-top:16px;font-weight:800">Groups</div>
-      <p class="hint" style="margin:2px 0 8px">Students are split at random across the groups in this list, in proportion to each group's share. A group can override any setting above by name: <code>numDoors</code>, <code>totalClicks</code>, <code>timeLimit</code>, <code>clockStartsOnClick</code>, <code>autoClickSeconds</code>, <code>n</code>, <code>m</code>, <code>stagger</code>, <code>clickTicks</code>, <code>ticksPerSecond</code>, <code>showCountdown</code>, <code>shuffleDoors</code>, <code>sampleDoors</code>, <code>showAverages</code>, <code>showHints</code>, <code>doors</code>. Students don't see group names until you reveal the results.</p>
+      <p class="hint" style="margin:2px 0 8px">Students are split at random across the groups in this list, in proportion to each group's share. A group can override any setting above by name: <code>numDoors</code>, <code>totalClicks</code>, <code>tries</code>, <code>timeLimit</code>, <code>clockStartsOnClick</code>, <code>autoClickSeconds</code>, <code>n</code>, <code>m</code>, <code>stagger</code>, <code>clickTicks</code>, <code>ticksPerSecond</code>, <code>showCountdown</code>, <code>shuffleDoors</code>, <code>sampleDoors</code>, <code>showAverages</code>, <code>showHints</code>, <code>doors</code>. Students don't see group names until you reveal the results.</p>
       <textarea id="t-groups" spellcheck="false"></textarea>
       <div class="row" style="margin-top:8px">
         <button class="plain" type="button" data-preset="one">One group</button>
@@ -487,6 +489,8 @@ const DEFAULTS = {
   totalClicks: 30,      // clicks each player gets (99999 or more = unlimited: the clicks counter is hidden).
                         //   Rule of thumb used throughout: one click per second of the time limit, since most people click faster than that.
   autoClickSeconds: 0.2, // once only one door is left unlocked, the game clicks it for the player this often (0 = off); they can still click faster themselves
+  tries: 3,             // how many times this round is meant to be played. It only changes the wording in the teacher view
+                        //   ("try 2 of 3", and a reminder to load the next round after the last try); extra tries are always allowed.
   timeLimit: 30,        // seconds each player gets, shown as a countdown (0 = no limit). The defaults are the learning rounds:
                         //   3 doors (6, 8, 10), 30 seconds, nothing explained, no averages shown.
   clockStartsOnClick: true, // true = the time limit starts with the player's own first click; false = it starts when the doors
@@ -770,7 +774,7 @@ function loadSaved(){
 }
 function fillForm(c){
   $("s-doors").value=c.numDoors; $("s-clicks").value=c.totalClicks; $("s-n").value=c.n; $("s-m").value=c.m; $("s-stagger").value=c.stagger;
-  $("s-clickticks").value=c.clickTicks; $("s-rate").value=c.ticksPerSecond; $("s-limit").value=c.timeLimit||0; $("s-auto").value=c.autoClickSeconds||0;
+  $("s-clickticks").value=c.clickTicks; $("s-rate").value=c.ticksPerSecond; $("s-limit").value=c.timeLimit||0; $("s-tries").value=c.tries||1; $("s-auto").value=c.autoClickSeconds||0;
   $("s-countdown").checked=!!c.showCountdown; $("s-shuffle").checked=!!c.shuffleDoors; $("s-sample").checked=!!c.sampleDoors; $("s-clickstart").checked=c.clockStartsOnClick!==false; $("s-hints").checked=!!c.showHints; $("s-averages").checked=!!c.showAverages;
   $("s-theme").value=c.theme; applyTheme(c.theme);
   $("s-dists").value="[\n"+c.doors.map(d=>"  "+JSON.stringify(d)).join(",\n")+"\n]";
@@ -783,7 +787,7 @@ function readForm(){
   c.totalClicks=int("s-clicks","Clicks available",1);
   const num=(id,label)=>{ const v=Number($(id).value); if($(id).value===""||!isFinite(v)||v<0) throw new Error(label+" must be a number of at least 0."); return v; };
   c.n=int("s-n","n",0); c.m=int("s-m","m",0); c.stagger=int("s-stagger","Stagger",0);
-  c.clickTicks=num("s-clickticks","Ticks per click"); c.ticksPerSecond=num("s-rate","Ticks per second"); c.timeLimit=num("s-limit","The time limit"); c.autoClickSeconds=num("s-auto","The automatic-click interval");
+  c.clickTicks=num("s-clickticks","Ticks per click"); c.ticksPerSecond=num("s-rate","Ticks per second"); c.timeLimit=num("s-limit","The time limit"); c.tries=int("s-tries","Planned tries",1); c.autoClickSeconds=num("s-auto","The automatic-click interval");
   c.showCountdown=$("s-countdown").checked; c.shuffleDoors=$("s-shuffle").checked; c.sampleDoors=$("s-sample").checked; c.clockStartsOnClick=$("s-clickstart").checked; c.showHints=$("s-hints").checked; c.showAverages=$("s-averages").checked;
   c.theme=THEMES[$("s-theme").value] ? $("s-theme").value : "cuddly";
   let d; try{ d=JSON.parse($("s-dists").value); }catch(e){ throw new Error("The points distributions aren't valid JSON: "+e.message); }
@@ -1137,23 +1141,27 @@ const GROUP_PRESETS={
   one:[{name:"Everyone",share:1}],
   never:[{name:"Doors close",share:1},{name:"Doors never close",share:1,n:99999}],
   // The learning rounds: the same three doors for everyone (true averages 6, 8, 10), reshuffled every time, 30 seconds each.
-  r1:[{name:"Everyone", share:1, timeLimit:30, totalClicks:30, showAverages:false, numDoors:3, sampleDoors:false, shuffleDoors:true, doors:[6,8,10].map(mean=>({type:"normal",mean,sd:5}))}],
+  r1:[{name:"Everyone", share:1, tries:3, timeLimit:30, totalClicks:30, showAverages:false, numDoors:3, sampleDoors:false, shuffleDoors:true, doors:[6,8,10].map(mean=>({type:"normal",mean,sd:5}))}],
   // 6 vs 12 doors: each player's doors are a random draw from these twelve true averages. Twelve doors always include the 15;
   // six doors include it half the time, and the best door a 6-door player is dealt averages about 13.1,
   // so having twelve doors is worth about 14% more. Every door's true average is between 5 and 15.
-  few:[6,12].map(k=>({name:k+" doors", share:1, timeLimit:60, totalClicks:60, showAverages:false, numDoors:k, sampleDoors:true, shuffleDoors:true, doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
+  few:[6,12].map(k=>({name:k+" doors", share:1, tries:2, timeLimit:60, totalClicks:60, showAverages:false, numDoors:k, sampleDoors:true, shuffleDoors:true, doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
   // Averages round: everyone gets nine doors, a random draw from the same twelve true averages as the 6-vs-12 round
   // (so a player holds the 15 three times in four). Half the class sees a running average of their own payouts under
   // each door, colored on the full 5-to-15 scale; the other half has to keep track in their heads.
-  avg:[false,true].map(on=>({name:on?"Averages shown":"Averages hidden", share:1, timeLimit:60, totalClicks:60, showAverages:on, numDoors:9, sampleDoors:true, shuffleDoors:true,
+  avg:[false,true].map(on=>({name:on?"Averages shown":"Averages hidden", share:1, tries:2, timeLimit:60, totalClicks:60, showAverages:on, numDoors:9, sampleDoors:true, shuffleDoors:true,
                             doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
   // The round that counts: everyone gets the same nine doors (nine of the twelve true averages used in the earlier rounds,
   // in a shuffled order), so nobody's score depends on the deal. No averages are shown.
-  money:[{name:"Money round", share:1, timeLimit:60, totalClicks:60, showAverages:false, numDoors:9, sampleDoors:false, shuffleDoors:true,
+  money:[{name:"Money round", share:1, tries:1, timeLimit:60, totalClicks:60, showAverages:false, numDoors:9, sampleDoors:false, shuffleDoors:true,
           doors:[5,6,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))}],
   shin:[{name:"Doors vanish",share:1,n:0,m:12,stagger:0},{name:"Doors never vanish",share:1,n:0,m:99999,stagger:0}]
 };
 
+// The plan for the class: round 1 uses PLAN[0], round 2 uses PLAN[1], and so on. On the "Run the game" tab, once a round's
+// planned tries are done, the main button loads the next round's preset, re-splits the students, and starts it in one press.
+const PLAN=["r1","few","avg","money"];
+const PRESET_TITLES={r1:"learning, 3 doors", few:"6 doors vs. 12 doors", avg:"9 doors, averages hidden vs. shown", money:"the money round"};
 let db=null, sref=null, offs=[], roundOff=null, roundKey=null;
 const S={};
 function resetS(){
@@ -1241,13 +1249,13 @@ function pickGroup(config,players){
 /* ======================= student side ======================= */
 async function joinStudent(rawName,rawCode){
   const name=cleanName(rawName), code=cleanCode(rawCode);
-  if(!name) throw new Error("Type your name.");
+  if(!name) throw new Error("Type a screen name.");
   if(!code) throw new Error("Type the session code.");
   if(!fbInit()) throw new Error("Couldn't reach the game server. Check your connection and reload the page.");
   const ref=db.ref(sessionPath(code));
   if(!(await once(ref.child("meta"))).val()) throw new Error("There's no session with that code. Check it and try again.");
   const pid=nameKey(name), pref=ref.child("players/"+pid), cur=(await once(pref)).val();
-  if(cur && cur.uid && cur.uid!==UID) throw new Error("Someone in this session already has that name. Add a last initial.");
+  if(cur && cur.uid && cur.uid!==UID) throw new Error("Someone in this session already has that screen name. Pick another.");
   if(!cur){
     const [c,p]=await Promise.all([once(ref.child("config")), once(ref.child("players"))]);
     await pref.set({name, uid:UID, g:pickGroup(c.val(), p.val()||{}), joined:TS()});
@@ -1468,7 +1476,7 @@ async function joinTeacher(rawCode,pass){
   const ref=db.ref(sessionPath(code));
   if(!(await once(ref.child("meta"))).val()){                                  // a new code makes a new session
     const base=loadSaved();                                                    // starting from the settings last used on this computer
-    await ref.set({meta:{round:1,set:1,try:1,dirty:false,status:"lobby",reveal:false,created:TS()}, config:{base, groups:GROUP_PRESETS.one}});
+    await ref.set({meta:{round:1,set:1,try:1,dirty:false,status:"lobby",reveal:false,created:TS()}, config:{base, groups:GROUP_PRESETS[PLAN[0]]}});          // a new session starts on round 1 of the plan
   }
   stopAll(); resetS(); game=null; if(ticker){ clearInterval(ticker); ticker=null; }
   document.body.classList.remove("nohints","mockup");
@@ -1504,11 +1512,24 @@ function renderTeacher(){
   const m=S.meta, r=m.round, open=m.status==="open";
   $("t-code").textContent=S.code;
   $("t-url").textContent=(location.host+location.pathname).replace(/index\.html$/,"");
-  const lab=playLabel(r), nx=nextPlay(), nxLab="round "+nx.set+", try "+nx.try;
+  // "try 2 of 3": the settings say how many tries of a round are planned. After the last one, the teacher view says to
+  // load the next round rather than inviting another try (an extra try is still one press away).
+  const plan=Math.max(1,...S.config.groups.map((g,i)=>groupCfg(S.config,i).tries||1));
+  const cur=playInfo(r), nx=nextPlay(), lab="Round "+cur.set+", try "+cur.try+(m.dirty||cur.try>plan ? "" : " of "+plan);
+  const lastTry=!m.dirty && cur.try>=plan, nextKey=lastTry ? PLAN[cur.set] : null;      // the preset for round cur.set+1, if the plan has one
   $("t-status").textContent = m.status==="lobby" ? lab+" hasn't started. Students who join see a waiting screen."
     : open ? lab+" is open. "+(S.config.base.clockStartsOnClick!==false ? "The doors appeared for everyone together; each student's clock starts with their first click." : "Everyone is on the same clock; a student who joins now starts at once with whatever time is left.")
-    : lab+" has ended."+(m.reveal?" Students can see the results.":"")+(m.dirty ? " New settings are saved, so the next start begins round "+nx.set+"." : " Start again for another try with the same settings, or save new settings first to begin round "+((m.set||1)+1)+".");
-  $("t-main").textContent = m.status==="lobby" ? "Start "+lab.toLowerCase() : open ? "End "+lab.toLowerCase() : "Start "+nxLab;
+    : "Round "+cur.set+", try "+cur.try+" has ended."+(m.reveal?" Students can see the results.":"")+
+      (m.dirty ? " The next round's settings are saved. Press start when you're ready."
+       : nextKey ? " That was the last try of round "+cur.set+". The button below loads round "+(cur.set+1)+" ("+PRESET_TITLES[nextKey]+"), splits the students, and starts it."
+       : lastTry ? " That was the last planned round. For anything more, choose settings on the Settings tab and save them."
+       : " Press start for try "+nx.try+" of "+plan+".");
+  $("t-main").textContent = m.status==="lobby" ? "Start "+lab.toLowerCase() : open ? "End round "+cur.set+", try "+cur.try
+    : m.dirty ? "Start round "+nx.set+", try 1" : nextKey ? "Start round "+(cur.set+1)+": "+PRESET_TITLES[nextKey]
+    : lastTry ? "Extra try: start round "+nx.set+", try "+nx.try : "Start round "+nx.set+", try "+nx.try+" of "+plan;
+  $("t-main").className = (m.status==="closed" && lastTry && !nextKey) ? "plain" : "go";
+  $("t-extra").hidden = !(m.status==="closed" && nextKey);
+  $("t-extra").textContent = "Play round "+cur.set+" once more instead (try "+nx.try+")";
   $("t-reveal").textContent = m.reveal ? "Hide the results from students" : "Reveal the results to students";
   $("t-shuffle").disabled=open; $("t-save").disabled=open;
   if(open) $("t-set-note").textContent="Settings are locked while a round is open.";
@@ -1604,7 +1625,7 @@ function teacherClock(){
   $("t-timer-k").textContent=k; $("t-timer").style.color = low ? "var(--warn)" : "";
 }
 setInterval(teacherClock,250);
-function teacherMain(){
+function teacherMain(extra){
   const m=S.meta; if(!m) return;
   const up={};
   if(m.status==="lobby"){
@@ -1613,8 +1634,17 @@ function teacherMain(){
     up["plays/r"+m.round]=now;
   }
   else if(m.status==="open") Object.assign(up,{"meta/status":"closed","meta/ended":TS()});
-  else{                                                    // straight into the next play
-    const nx=nextPlay();
+  else{
+    const cur=playInfo(m.round), plan=Math.max(1,...S.config.groups.map((g,i)=>groupCfg(S.config,i).tries||1));
+    const nextKey = (!m.dirty && cur.try>=plan && !extra) ? PLAN[cur.set] : null;
+    let nx=nextPlay();
+    if(nextKey){                                           // the next round of the plan: load its preset and split the students, all in this one press
+      const base=S.config.base, groups=parseGroups(groupsText(GROUP_PRESETS[nextKey]),base), fake={};
+      up.config={base,groups};
+      shuffle(Object.keys(S.players)).forEach(id=>{ const g=pickGroup({base,groups},fake); fake[id]={g}; up["players/"+id+"/g"]=g; });
+      $("t-groups").value=groupsText(groups);
+      nx={set:cur.set+1, try:1};
+    }
     Object.assign(up,{"meta/status":"open","meta/round":m.round+1,"meta/set":nx.set,"meta/try":nx.try,"meta/dirty":false,"meta/reveal":false,"meta/started":serverNow()+3000,"meta/ended":null});
     up["plays/r"+(m.round+1)]=nx;
   }
@@ -1701,7 +1731,8 @@ $("role-student").addEventListener("click",()=>setJoinRole("student"));
 $("role-teacher").addEventListener("click",()=>setJoinRole("teacher"));
 $("btn-leave1").addEventListener("click",leaveSession);
 $("btn-leave2").addEventListener("click",leaveSession);
-$("t-main").addEventListener("click",teacherMain);
+$("t-main").addEventListener("click",()=>teacherMain(false));
+$("t-extra").addEventListener("click",()=>teacherMain(true));
 $("t-reveal").addEventListener("click",()=>{ if(S.meta) sref.child("meta/reveal").set(!S.meta.reveal); });
 $("t-private").addEventListener("change",renderTeacher);
 $("r-round").addEventListener("change",pickResultsRound);
