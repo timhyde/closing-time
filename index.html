@@ -386,7 +386,7 @@ body.nohints .status{min-height:0}
 <div id="end" class="screen">
   <h1>Game over</h1>
   <div class="card">
-    <div class="hint" style="margin:0">Your score</div>
+    <div class="hint" style="margin:0" id="end-who">Your score</div>
     <div class="big" id="end-score">0</div>
     <p id="end-summary" style="margin:10px 0 0"></p>
   </div>
@@ -492,8 +492,8 @@ body.nohints .status{min-height:0}
    ====================================================================== */
 const DEFAULTS = {
   numDoors: 3,          // how many doors
-  totalClicks: 30,      // clicks each player gets (99999 or more = unlimited: the clicks counter is hidden).
-                        //   Rule of thumb used throughout: one click per second of the time limit, since most people click faster than that.
+  totalClicks: 50,      // clicks each player gets (99999 or more = unlimited: the clicks counter is hidden).
+                        //   Rule used throughout: 100 clicks per minute of the time limit (50 for a 30-second round).
   autoClickSeconds: 0.2, // once only one door is left unlocked, the game clicks it for the player this often (0 = off); they can still click faster themselves
   tries: 3,             // how many times this round is meant to be played. It only changes the wording in the teacher view
                         //   ("try 2 of 3", and a reminder to load the next round after the last try); extra tries are always allowed.
@@ -1072,7 +1072,7 @@ function fmt(x){ return (Math.round(x*10)/10).toLocaleString(undefined,{maximumF
 function showEnd(){
   if(!game) return;
   if(classEnd()) return;                                   // in a class session the end screen is drawn from the saved result
-  setEndButtons(false); $("end-class").hidden=true;
+  setEndButtons(false); $("end-class").hidden=true; $("end-who").textContent="Your score";
   const means=game.doors.map(d=>trueMean(d.spec)), best=Math.max(...means);
   const locked=game.doors.filter(d=>d.lockedAt!==null).length;
   $("end-score").textContent=game.score.toLocaleString();
@@ -1147,26 +1147,26 @@ const GROUP_PRESETS={
   one:[{name:"Everyone",share:1}],
   never:[{name:"Doors close",share:1},{name:"Doors never close",share:1,n:99999}],
   // The learning rounds: the same three doors for everyone (true averages 6, 8, 10), reshuffled every time, 30 seconds each.
-  r1:[{name:"Everyone", share:1, tries:3, timeLimit:30, totalClicks:30, showAverages:false, numDoors:3, sampleDoors:false, shuffleDoors:true, doors:[6,8,10].map(mean=>({type:"normal",mean,sd:5}))}],
+  r1:[{name:"Everyone", share:1, tries:3, timeLimit:30, totalClicks:50, showAverages:false, numDoors:3, sampleDoors:false, shuffleDoors:true, doors:[6,8,10].map(mean=>({type:"normal",mean,sd:5}))}],
   // 6 vs 12 doors: each player's doors are a random draw from these twelve true averages. Twelve doors always include the 15;
   // six doors include it half the time, and the best door a 6-door player is dealt averages about 13.1,
   // so having twelve doors is worth about 14% more. Every door's true average is between 5 and 15.
-  few:[6,12].map(k=>({name:k+" doors", share:1, tries:2, timeLimit:60, totalClicks:60, showAverages:false, numDoors:k, sampleDoors:true, shuffleDoors:true, doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
+  few:[6,12].map(k=>({name:k+" doors", share:1, tries:2, timeLimit:60, totalClicks:100, showAverages:false, numDoors:k, sampleDoors:true, shuffleDoors:true, doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
   // Averages round: everyone gets nine doors, a random draw from the same twelve true averages as the 6-vs-12 round
   // (so a player holds the 15 three times in four). Half the class sees a running average of their own payouts under
   // each door, colored on the full 5-to-15 scale; the other half has to keep track in their heads.
-  avg:[false,true].map(on=>({name:on?"Averages shown":"Averages hidden", share:1, tries:2, timeLimit:60, totalClicks:60, showAverages:on, numDoors:9, sampleDoors:true, shuffleDoors:true,
+  avg:[false,true].map(on=>({name:on?"Averages shown":"Averages hidden", share:1, tries:2, timeLimit:60, totalClicks:100, showAverages:on, numDoors:9, sampleDoors:true, shuffleDoors:true,
                             doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
-  // The round that counts: everyone gets the same nine doors (nine of the twelve true averages used in the earlier rounds,
+  // The round that counts (a bonus for the top score in the class): everyone gets the same nine doors (nine of the twelve true averages used in the earlier rounds,
   // in a shuffled order), so nobody's score depends on the deal. No averages are shown.
-  money:[{name:"Money round", share:1, tries:1, timeLimit:60, totalClicks:60, showAverages:false, numDoors:9, sampleDoors:false, shuffleDoors:true,
+  money:[{name:"Money round", share:1, tries:1, timeLimit:60, totalClicks:100, showAverages:false, numDoors:9, sampleDoors:false, shuffleDoors:true,
           doors:[5,6,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))}],
   shin:[{name:"Doors vanish",share:1,n:0,m:12,stagger:0},{name:"Doors never vanish",share:1,n:0,m:99999,stagger:0}]
 };
 
 // The plan for the class: round 1 uses PLAN[0], round 2 uses PLAN[1], and so on. On the "Run the game" tab, once a round's
 // planned tries are done, the main button loads the next round's preset, re-splits the students, and starts it in one press.
-const VERSION="Nov 19, version 4";            // shown at the bottom of the teacher view, to tell at a glance whether a browser has the latest page
+const VERSION="Nov 19, version 5";            // shown at the bottom of the teacher view, to tell at a glance whether a browser has the latest page
 const PLAN=["r1","few","avg","money"];
 const PRESET_TITLES={r1:"learning, 3 doors", few:"6 doors vs. 12 doors", avg:"9 doors, averages hidden vs. shown", money:"the money round"};
 let db=null, sref=null, offs=[], roundOff=null, roundKey=null;
@@ -1385,6 +1385,7 @@ function setEndButtons(inClass){
 function showClassEnd(){
   const sm=S.summary, reveal=!!S.meta.reveal, d=arr(sm.d);
   const best=Math.max(...d.map(x=>x.mu));
+  $("end-who").textContent="Score for "+sm.name;
   $("end-score").textContent=Number(sm.score).toLocaleString();
   $("end-summary").textContent="You used "+sm.t+" click"+(sm.t===1?"":"s")+": "+(sm.t-sm.reopens)+" on chests and "+sm.reopens+" reopening doors. "+
     (sm.end==="closed" ? "The round ended before you finished. " : sm.end==="time" ? (sm.tc<99999 ? "Time ran out with "+sm.left+" click"+(sm.left===1?"":"s")+" unused. " : "Time ran out. ") : sm.end==="locked" ? "Every door locked with "+sm.left+" click"+(sm.left===1?"":"s")+" unused. " : "")+
@@ -1581,6 +1582,12 @@ function renderTeacher(){
       const a=asOne(before), b=asOne(pool(cur.set));
       if(a) list.push(["Round "+(cur.set-1)+" (averages hidden)",a]);
       if(b) list.push(["Round "+cur.set+" (for credit)",b]);
+      // the bonus goes to the top score in the class: name it (all names, if tied)
+      const fin=Object.values(pool(cur.set)).filter(x=>x && x.state==="done");
+      if(fin.length){
+        const top=Math.max(...fin.map(x=>x.score)), who=fin.filter(x=>x.score===top).map(x=>x.name);
+        cmp="Top score: "+who.join(" and ")+", with "+top.toLocaleString()+" points"+(who.length>1 ? " (a tie)." : ".");
+      }
     }
     $("t-slide").hidden=!cols;
     if(cols){
