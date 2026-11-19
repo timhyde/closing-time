@@ -425,6 +425,12 @@ body.nohints .status{min-height:0}
         <button class="plain" id="t-reveal" type="button"></button>
       </div>
     </div>
+    <div class="card" id="t-slide" hidden>
+      <h2 id="t-slide-title"></h2>
+      <div class="tablewrap"><table id="t-slide-table" class="bigtable"></table></div>
+      <p id="t-slide-compare" style="margin:10px 0 0;font-weight:800;font-size:20px"></p>
+      <p class="hint" id="t-slide-note"></p>
+    </div>
     <div class="card">
       <label class="check" style="margin-top:0"><input type="checkbox" id="t-private"> Show scores and groups in this table (leave off while this screen is projected during a round)</label>
       <div class="tablewrap"><table id="t-roster"></table></div>
@@ -1160,6 +1166,7 @@ const GROUP_PRESETS={
 
 // The plan for the class: round 1 uses PLAN[0], round 2 uses PLAN[1], and so on. On the "Run the game" tab, once a round's
 // planned tries are done, the main button loads the next round's preset, re-splits the students, and starts it in one press.
+const VERSION="Nov 19, version 4";            // shown at the bottom of the teacher view, to tell at a glance whether a browser has the latest page
 const PLAN=["r1","few","avg","money"];
 const PRESET_TITLES={r1:"learning, 3 doors", few:"6 doors vs. 12 doors", avg:"9 doors, averages hidden vs. shown", money:"the money round"};
 let db=null, sref=null, offs=[], roundOff=null, roundKey=null;
@@ -1535,7 +1542,7 @@ function renderTeacher(){
   if(open) $("t-set-note").textContent="Settings are locked while a round is open.";
   else if($("t-set-note").textContent.indexOf("Saved.")!==0 || renderTeacher.lastStatus!==m.status+r) $("t-set-note").textContent="Pick a preset, then press Save. Saving also re-splits students across the groups at random.";
   renderTeacher.lastStatus=m.status+r;
-  $("t-note").textContent="Reassigning groups is off while a round is open. Resetting removes every player and all results; the settings stay.";
+  $("t-note").textContent="Reassigning groups is off while a round is open. Resetting removes every player and all results; the settings stay. Page: "+VERSION+".";
 
   // roster: everyone who joined, plus anyone with a result this round who has since left
   const priv=$("t-private").checked, ids=[...new Set(Object.keys(S.players).concat(Object.keys(S.results)))];
@@ -1551,6 +1558,40 @@ function renderTeacher(){
   });
   $("t-roster").innerHTML=h;
   $("t-count").textContent=rows.length+" player"+(rows.length===1?"":"s")+" joined · "+playing+" playing · "+done+" finished";
+
+  // "For the slide": right here on the Run tab, the numbers to write into the matching fill-in table on the slides.
+  // Which table depends on the round of the plan; all tries of the round are pooled; it fills in as games finish.
+  {
+    const key=PLAN[cur.set-1], need=playsOfSet(cur.set).concat(key==="money" ? playsOfSet(cur.set-1) : []).filter(k=>k!==r), nsig=S.code+":"+need.join(",");
+    if(S.slideSig!==nsig){
+      S.slideSig=nsig; (S.slideOffs||[]).forEach(f=>f()); S.slideData={};
+      S.slideOffs=need.map(k=>listen(sref.child("rounds/r"+k), x=>{ if(S.slideData) S.slideData["r"+k]=x||{}; renderTeacher(); }));
+    }
+    const pool=set=>{ const o={}; playsOfSet(set).forEach(k=>{ const src = k===r ? S.results : ((S.slideData||{})["r"+k]||{}); Object.keys(src).forEach(id=>{ o[k+"/"+id]=src[id]; }); }); return o; };
+    const asOne=o=>{ const out={}; Object.keys(o).forEach(id=>{ out[id]=Object.assign({},o[id],{g:0}); }); return groupStats(out).groups[0]; };   // everyone as a single row
+    const HEAD={held:"Best door held (average)", score:"Average score", best:"Clicks on best door", reopen:"Reopen clicks", lost:"Doors lost"};
+    const cell=(b,c)=> c==="score" ? fmt(b.score/b.n) : c==="best" ? (b.chest ? Math.round(100*b.best/b.chest)+"%" : "–") : c==="reopen" ? fmt(b.reopens/b.n) : c==="lost" ? fmt(b.locked/b.n) : fmt(b.bm/b.n);
+    const here=groupStats(pool(cur.set));
+    let cols=null, list=[], title="", cmp="";
+    if(key==="few"){ title="Round "+cur.set+": what the class did"; cols=["held","score","reopen","lost"]; list=here.groups.map(b=>[b.name,b]); cmp=compareLine(here); }
+    else if(key==="avg"){ title="Round "+cur.set+": what the class did"; cols=["score","best","reopen","lost"]; list=here.groups.map(b=>[b.name,b]); cmp=compareLine(here); }
+    else if(key==="money"){
+      title="Did it stick?"; cols=["best","reopen","lost"];
+      const before={}, prev=pool(cur.set-1); Object.keys(prev).forEach(id=>{ if(prev[id] && !prev[id].sa) before[id]=prev[id]; });
+      const a=asOne(before), b=asOne(pool(cur.set));
+      if(a) list.push(["Round "+(cur.set-1)+" (averages hidden)",a]);
+      if(b) list.push(["Round "+cur.set+" (for credit)",b]);
+    }
+    $("t-slide").hidden=!cols;
+    if(cols){
+      $("t-slide-title").textContent="For the slide “"+title+"”";
+      $("t-slide-table").innerHTML="<tr><th></th>"+cols.map(c=>"<th>"+HEAD[c]+"</th>").join("")+"<th>Games</th></tr>"+
+        (list.length ? list.map(([nm,b])=>"<tr><td>"+esc(nm)+"</td>"+cols.map(c=>"<td>"+cell(b,c)+"</td>").join("")+'<td style="font-weight:400;font-size:16px">'+b.n+"</td></tr>").join("")
+                     : '<tr><td colspan="'+(cols.length+2)+'" style="font-size:16px;font-weight:400">No finished games in this round yet.</td></tr>');
+      $("t-slide-compare").textContent=cmp;
+      $("t-slide-note").textContent="All tries of the round so far, finished games only. The numbers update as games finish.";
+    }
+  }
 
   // results tab
   // The Results tab can show any one try, or all the tries of a round pooled (the roster above always shows the current try).
