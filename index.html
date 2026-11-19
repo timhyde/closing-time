@@ -1148,15 +1148,17 @@ const GROUP_PRESETS={
   never:[{name:"Doors close",share:1},{name:"Doors never close",share:1,n:99999}],
   // The learning rounds: the same three doors for everyone (true averages 6, 8, 10), reshuffled every time, 30 seconds each.
   r1:[{name:"Everyone", share:1, tries:3, timeLimit:30, totalClicks:50, showAverages:false, numDoors:3, sampleDoors:false, shuffleDoors:true, doors:[6,8,10].map(mean=>({type:"normal",mean,sd:5}))}],
-  // 6 vs 12 doors: each player's doors are a random draw from these twelve true averages. Twelve doors always include the 15;
-  // six doors include it half the time, and the best door a 6-door player is dealt averages about 13.1,
-  // so having twelve doors is worth about 14% more. Every door's true average is between 5 and 15.
-  few:[6,12].map(k=>({name:k+" doors", share:1, tries:2, timeLimit:60, totalClicks:100, showAverages:false, numDoors:k, sampleDoors:true, shuffleDoors:true, doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
-  // Averages round: everyone gets nine doors, a random draw from the same twelve true averages as the 6-vs-12 round
-  // (so a player holds the 15 three times in four). Half the class sees a running average of their own payouts under
-  // each door, colored on the full 5-to-15 scale; the other half has to keep track in their heads.
-  avg:[false,true].map(on=>({name:on?"Averages shown":"Averages hidden", share:1, tries:2, timeLimit:60, totalClicks:100, showAverages:on, numDoors:9, sampleDoors:true, shuffleDoors:true,
-                            doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
+  // 6 vs 12 doors, with FIXED door sets: every 6-door player gets the same six doors, and every 12-door player gets those
+  // same six plus six more. So a 12-door player can always ignore the extras and play the 6-door game. The best of the six
+  // pays 12 on average; the extra six include the 15, so having twelve doors is worth 25% more if you find your best door.
+  // (Positions are still shuffled for each player.)
+  few:[[6,[5,6,7,8,10,12]],[12,[5,6,7,8,10,12, 5,6,7,9,11,15]]].map(([k,qs])=>({name:k+" doors", share:1, tries:2, timeLimit:60, totalClicks:100, showAverages:false,
+        numDoors:k, sampleDoors:false, shuffleDoors:true, doors:qs.map(mean=>({type:"normal",mean,sd:5}))})),
+  // Averages round: everyone gets the SAME nine doors (the money round's nine), in a shuffled order. Half the class sees a
+  // running average of their own payouts under each door, colored on the 5-to-15 scale; the other half keeps track in
+  // their heads. No luck of the deal: the only thing that differs between the halves is the display.
+  avg:[false,true].map(on=>({name:on?"Averages shown":"Averages hidden", share:1, tries:2, timeLimit:60, totalClicks:100, showAverages:on, numDoors:9, sampleDoors:false, shuffleDoors:true,
+                            doors:[5,6,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
   // The round that counts (a bonus for the top score in the class): everyone gets the same nine doors (nine of the twelve true averages used in the earlier rounds,
   // in a shuffled order), so nobody's score depends on the deal. No averages are shown.
   money:[{name:"Money round", share:1, tries:1, timeLimit:60, totalClicks:100, showAverages:false, numDoors:9, sampleDoors:false, shuffleDoors:true,
@@ -1166,7 +1168,7 @@ const GROUP_PRESETS={
 
 // The plan for the class: round 1 uses PLAN[0], round 2 uses PLAN[1], and so on. On the "Run the game" tab, once a round's
 // planned tries are done, the main button loads the next round's preset, re-splits the students, and starts it in one press.
-const VERSION="Nov 19, version 5";            // shown at the bottom of the teacher view, to tell at a glance whether a browser has the latest page
+const VERSION="Nov 19, version 6";            // shown at the bottom of the teacher view, to tell at a glance whether a browser has the latest page
 const PLAN=["r1","few","avg","money"];
 const PRESET_TITLES={r1:"learning, 3 doors", few:"6 doors vs. 12 doors", avg:"9 doors, averages hidden vs. shown", money:"the money round"};
 let db=null, sref=null, offs=[], roundOff=null, roundKey=null;
