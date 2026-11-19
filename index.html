@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Closing Time</title>
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#fff4dc; --bg2:#ffe9c2; --ink:#3d2a1e; --muted:#7a6452; --card:#fffdf6; --outline:#3d2a1e;
+  --yellow:#ffc93c; --coral:#ff7b6b; --frame:#f3d9a4; --frame2:#e2bf80; --room:#3b2a63; --room2:#6a4fa0;
+  --good:#2b8a4a; --warn:#c7420d;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1f1b2e; --bg2:#272040; --ink:#f7efe2; --muted:#b9aecb; --card:#2b2544; --outline:#120e1c;
+         --frame:#8d7fb8; --frame2:#6f629a; --room:#171128; --room2:#3d2c6b; --good:#7ddc9c; --warn:#ffa46b; }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:radial-gradient(circle at 20% 0%,var(--bg2),var(--bg) 55%) fixed;color:var(--ink);
+  font:17px/1.5 ui-rounded,"SF Pro Rounded","Arial Rounded MT Bold","Nunito","Varela Round",system-ui,-apple-system,sans-serif;}
+#app{max-width:1040px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:36px;margin:0 0 2px;letter-spacing:.01em}
+.sub{color:var(--muted);margin:0 0 18px}
+.card{background:var(--card);border:3px solid var(--outline);border-radius:22px;padding:18px 20px;margin-bottom:18px;box-shadow:0 5px 0 var(--outline)}
+.screen{display:none}
+.screen.on{display:block}
+button.go,button.plain{font:inherit;font-weight:800;color:#3d2a1e;border:3px solid var(--outline);border-radius:999px;padding:11px 24px;cursor:pointer;
+  box-shadow:0 5px 0 var(--outline);transition:transform .06s, box-shadow .06s}
+button.go{background:var(--yellow)}
+button.plain{background:#fff;font-weight:700}
+button.go:active,button.plain:active{transform:translateY(4px);box-shadow:0 1px 0 var(--outline)}
+button:focus-visible{outline:4px solid var(--coral);outline-offset:3px}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+
+/* ---- settings ---- */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 18px;margin:12px 0}
+.grid label{display:flex;flex-direction:column;font-size:14px;color:var(--muted);gap:4px}
+.grid select{font:inherit;padding:8px 12px;border:2px solid var(--outline);border-radius:12px;background:var(--bg);color:var(--ink);width:100%}
+.grid input[type=number]{font:inherit;padding:8px 12px;border:2px solid var(--outline);border-radius:12px;background:var(--bg);color:var(--ink);width:100%}
+.check{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted);margin:6px 0}
+textarea{width:100%;min-height:92px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;padding:10px;border:2px solid var(--outline);border-radius:12px;background:var(--bg);color:var(--ink)}
+.hint{font-size:13px;color:var(--muted);margin:6px 0 0}
+#setup-error{color:var(--warn);font-weight:700;min-height:1.4em;margin-top:8px}
+summary{cursor:pointer;font-weight:800}
+
+/* ---- HUD ---- */
+.hud{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.stat{flex:1 1 160px;background:var(--card);border:3px solid var(--outline);border-radius:22px;padding:8px 18px;box-shadow:0 5px 0 var(--outline)}
+.stat[hidden]{display:none}
+.stat.low .v{color:var(--warn)}
+.stat .k{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.stat .v{font-size:38px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+.bar{height:14px;background:var(--card);border:3px solid var(--outline);border-radius:99px;overflow:hidden;margin:0 0 8px}
+.bar i{display:block;height:100%;background:var(--coral);width:100%;border-radius:99px}
+#msg{min-height:1.6em;text-align:center;color:var(--muted);margin:4px 0 16px;font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ---- doors ---- */
+.doors{display:flex;flex-wrap:wrap;justify-content:center;gap:28px 26px}
+.door{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;width:clamp(108px,20vw,184px);touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+.door:focus-visible .frame{outline:4px solid var(--coral);outline-offset:4px}
+.frame{position:relative;display:block;width:100%;aspect-ratio:3/4.2;background:linear-gradient(var(--frame),var(--frame2));
+  border:4px solid var(--outline);border-radius:50% 50% 14px 14px / 32% 32% 14px 14px;padding:10px 10px 0;box-shadow:0 6px 0 var(--outline)}
+.room{position:relative;display:block;width:100%;height:100%;overflow:hidden;border:4px solid var(--outline);border-bottom:0;
+  border-radius:48% 48% 0 0 / 31% 31% 0 0;background:radial-gradient(ellipse at 50% 85%,var(--room2) 0,var(--room) 70%)}
+.door.open .room{background:radial-gradient(ellipse at 50% 80%,#ffd873 0,#b98bd8 34%,var(--room) 78%)}
+.chest{position:absolute;left:50%;bottom:3%;width:78%;transform:translateX(-50%);display:block}
+.chest svg{display:block;width:100%;height:auto;overflow:visible}
+.chest .is-open{display:none}
+.door.open .chest .is-open{display:inline}
+.door.open .chest .is-closed{display:none}
+.door.open:hover .chest{animation:wiggle .5s ease-in-out infinite}
+@keyframes wiggle{0%,100%{transform:translateX(-50%) rotate(-3deg)}50%{transform:translateX(-50%) rotate(3deg)}}
+.sparkle{animation:twinkle 1.2s ease-in-out infinite}
+.sparkle.b{animation-delay:.4s}.sparkle.c{animation-delay:.8s}
+@keyframes twinkle{0%,100%{opacity:.25}50%{opacity:1}}
+.panel{position:absolute;inset:0;display:block;transform-origin:left center;transform:scaleX(var(--closed,0));transition:transform .16s steps(2,end);
+  background:repeating-linear-gradient(90deg,transparent 0 31%,rgba(0,0,0,.16) 31% 33.3%),var(--doorc,#ff8a80);
+  border-right:5px solid var(--outline);box-shadow:inset 0 -14px 0 rgba(0,0,0,.10), inset 0 10px 0 rgba(255,255,255,.22)}
+.panel::before{content:"";position:absolute;left:50%;top:17%;width:34%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;
+  background:rgba(255,255,255,.35);border:4px solid var(--outline)}
+.panel::after{content:"";position:absolute;right:9%;top:56%;width:13%;aspect-ratio:1;border-radius:50%;background:var(--yellow);border:3px solid var(--outline)}
+.door.locked .panel{filter:saturate(.45) brightness(.8);border-right:0}
+.padlock{position:absolute;left:50%;top:58%;width:40%;transform:translate(-50%,-50%);display:none}
+.door.locked .padlock{display:block}
+.door.locked{cursor:not-allowed}
+.pop{position:absolute;left:50%;top:14%;transform:translateX(-50%);font-weight:900;font-size:clamp(22px,3.6vw,34px);color:#ffe27a;white-space:nowrap;
+  text-shadow:-2px -2px 0 #3d2a1e,2px -2px 0 #3d2a1e,-2px 2px 0 #3d2a1e,2px 2px 0 #3d2a1e,0 4px 0 #3d2a1e;pointer-events:none;animation:rise .8s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes rise{0%{opacity:0;transform:translate(-50%,26px) scale(.5)}25%{opacity:1;transform:translate(-50%,4px) scale(1.2)}100%{opacity:0;transform:translate(-50%,-30px) scale(1)}}
+.pop.neg{color:#ff9d9d}
+.pop.still{animation:none;opacity:1;transform:translate(-50%,-6px)}
+#mock-note{display:none;text-align:center;color:var(--muted);font-size:14px;margin-top:22px}
+body.mockup #mock-note{display:block}
+body.mockup #btn-sound{display:none}
+#game{padding-bottom:96px}
+#skinbar{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;
+  padding:10px 12px;background:var(--card);border-top:3px solid var(--outline)}
+#skins{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.skinlabel{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.skin{font:inherit;font-size:14px;font-weight:700;padding:6px 14px;border:2px solid var(--outline);border-radius:999px;background:transparent;color:var(--ink);cursor:pointer}
+.skin[aria-pressed="true"]{background:var(--yellow);color:#3d2a1e}
+#skins .skin[aria-pressed="true"]{box-shadow:0 3px 0 var(--outline)}
+#btn-sound{margin-left:10px}
+#btn-sound[aria-pressed="true"]{background:transparent;color:var(--ink)}
+body.mockup .door{cursor:default}
+body.clean #skinbar, body.clean #mock-note{display:none}   /* ?mockup=8&clean=1 : nothing but the game, for screenshots */
+.chest.hit{animation:hit .28s cubic-bezier(.3,1.6,.5,1)}
+@keyframes hit{0%{transform:translateX(-50%) scale(1,1)}40%{transform:translateX(-50%) scale(1.14,.88)}100%{transform:translateX(-50%) scale(1,1)}}
+.frame.shake{animation:shake .28s linear}
+@keyframes shake{25%{transform:translateX(-5px) rotate(-1.5deg)}75%{transform:translateX(5px) rotate(1.5deg)}}
+@media (prefers-reduced-motion: reduce){
+  .pop{animation-duration:.01s;opacity:0} .chest.hit,.frame.shake,.sparkle,.door.open:hover .chest{animation:none} .panel{transition:none}
+}
+.name{margin-top:14px;font-weight:900;font-size:18px}
+.avg{font-size:15px;font-weight:900;font-variant-numeric:tabular-nums;text-align:center;line-height:1.3;white-space:nowrap;margin-top:4px;
+  padding:2px 12px;border-radius:999px;border:2px solid var(--outline);color:#222;background:#d9d6d0}
+.avg[hidden]{display:none}
+.door.locked .avg{opacity:.6}
+.status{font-size:14px;min-height:2.8em;text-align:center;color:var(--muted);line-height:1.3;font-weight:700}
+.door.closing .status{color:var(--warn)}
+.door.open .status{color:var(--good)}
+
+/* ============ DUNGEON THEME (dark fantasy): overrides only ============ */
+body.theme-dungeon{
+  color-scheme:dark;
+  --bg:#12100e; --bg2:#2a1c12; --ink:#eadfc4; --muted:#a39274; --card:#221e1a; --outline:#070605;
+  --yellow:#c9952a; --coral:#d9621f; --frame:#77716a; --frame2:#3f3b36; --room:#0b0806; --room2:#2a1a10;
+  --good:#a8d97f; --warn:#ff9a4d;
+  font-family:"Luminari","Cinzel","Trajan Pro","Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
+}
+body.theme-dungeon h1{letter-spacing:.06em;text-transform:uppercase;font-size:32px;color:#e3b021;text-shadow:0 2px 0 #000}
+body.theme-dungeon .card, body.theme-dungeon .stat{border-radius:6px;border-color:#070605;box-shadow:0 5px 0 #000, inset 0 0 0 1px #4a4239}
+body.theme-dungeon button.go, body.theme-dungeon button.plain{border-radius:6px;color:#160f08;box-shadow:0 5px 0 #000}
+body.theme-dungeon button.plain{background:#8d8477}
+body.theme-dungeon button.go:active, body.theme-dungeon button.plain:active{box-shadow:0 1px 0 #000}
+body.theme-dungeon .grid input[type=number], body.theme-dungeon .grid select, body.theme-dungeon textarea{border-radius:4px;border-color:#4a4239}
+body.theme-dungeon .bar{border-radius:3px} body.theme-dungeon .bar i{border-radius:0;background:linear-gradient(90deg,#8a2c0d,#e3792a)}
+body.theme-dungeon .frame{border-radius:50% 50% 4px 4px / 27% 27% 4px 4px;box-shadow:0 6px 0 #000;
+  background:repeating-linear-gradient(0deg,transparent 0 22px,rgba(0,0,0,.28) 22px 24px),linear-gradient(var(--frame),var(--frame2))}
+body.theme-dungeon .room{border-radius:48% 48% 0 0 / 26% 26% 0 0}
+body.theme-dungeon .door.open .room{background:radial-gradient(ellipse at 50% 84%,#ffb347 0,#9a4312 36%,#170d07 80%)}
+body.theme-dungeon .panel{
+  background:linear-gradient(#2e2e2e,#2e2e2e) 0 20%/100% 7% no-repeat, linear-gradient(#2e2e2e,#2e2e2e) 0 76%/100% 7% no-repeat,
+             repeating-linear-gradient(90deg,transparent 0 23%,rgba(0,0,0,.4) 23% 25%), #5a3a20;
+  box-shadow:inset 0 -14px 0 rgba(0,0,0,.25)}
+body.theme-dungeon .panel::before{top:36%;width:24%;background:var(--doorc);border:3px solid #120c08;box-shadow:0 0 12px 2px var(--doorc)}
+body.theme-dungeon .panel::after{background:transparent;border:4px solid #a8a8a8;width:14%;top:58%}
+body.theme-dungeon .door.locked .panel{filter:brightness(.55)}
+body.theme-dungeon .door.locked .panel::before{box-shadow:none;filter:grayscale(1)}
+body.theme-dungeon .padlock .plk{fill:#77736c}
+body.theme-dungeon .pop{color:#ffd76a;text-shadow:-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,2px 2px 0 #000,0 4px 0 #000}
+body.theme-dungeon .pop.neg{color:#ff6b57}
+body.theme-dungeon .door.open:hover .chest{animation:none;filter:brightness(1.25)}
+body.theme-dungeon .name{letter-spacing:.05em}
+
+/* ============ SPACE THEME ============ */
+body.theme-space{
+  color-scheme:dark;
+  --bg:#060a1a; --bg2:#1a1f4a; --ink:#e3ecff; --muted:#8fa0c8; --card:#0f1634; --outline:#02040c;
+  --yellow:#5ef2ff; --coral:#ff6bf0; --frame:#aab5cc; --frame2:#5a6580; --room:#03050d; --room2:#141d44;
+  --good:#6dffb0; --warn:#ffb14d;
+  font-family:"Orbitron","Eurostile","Avenir Next Condensed","Futura","Trebuchet MS",system-ui,sans-serif;
+  background:radial-gradient(1.5px 1.5px at 12% 22%,#fff,transparent 60%),radial-gradient(1px 1px at 78% 12%,#fff,transparent 60%),
+    radial-gradient(1.5px 1.5px at 62% 68%,#cfe0ff,transparent 60%),radial-gradient(1px 1px at 30% 84%,#fff,transparent 60%),
+    radial-gradient(1px 1px at 90% 52%,#fff,transparent 60%),radial-gradient(1px 1px at 45% 38%,#fff,transparent 60%),
+    radial-gradient(circle at 20% 0%,var(--bg2),var(--bg) 55%) fixed;
+}
+body.theme-space h1{letter-spacing:.14em;text-transform:uppercase;font-size:30px;color:#5ef2ff}
+body.theme-space .card, body.theme-space .stat{border-radius:10px;border-color:#2d3b6e;box-shadow:0 0 0 1px #02040c, 0 0 18px rgba(94,242,255,.15)}
+body.theme-space button.go, body.theme-space button.plain{border-radius:8px;color:#02040c;box-shadow:0 4px 0 #02040c}
+body.theme-space button.plain{background:#aab5cc}
+body.theme-space .skin{border-radius:6px;border-color:#2d3b6e} body.theme-space .skin[aria-pressed="true"]{color:#02040c}
+body.theme-space #skinbar{border-top-color:#2d3b6e}
+body.theme-space .grid input[type=number], body.theme-space .grid select, body.theme-space textarea{border-radius:6px;border-color:#2d3b6e}
+body.theme-space .bar{border-radius:4px;border-color:#2d3b6e} body.theme-space .bar i{background:linear-gradient(90deg,#b388ff,#5ef2ff);border-radius:0}
+body.theme-space .frame{border-radius:22px 22px 6px 6px;box-shadow:0 6px 0 #02040c;
+  background:linear-gradient(90deg,rgba(255,255,255,.18) 0 6%,transparent 6% 94%,rgba(0,0,0,.25) 94%),linear-gradient(var(--frame),var(--frame2))}
+body.theme-space .room{border-radius:14px 14px 0 0}
+body.theme-space .door.open .room{background:radial-gradient(ellipse at 50% 82%,#5ef2ff 0,#4a2f9c 38%,#03050d 80%)}
+body.theme-space .panel{
+  background:repeating-linear-gradient(135deg,#f2c12e 0 9px,#1b1b1b 9px 18px) 0 47%/100% 8% no-repeat, linear-gradient(#c3ccdd,#7c879d);
+  box-shadow:inset 0 -12px 0 rgba(0,0,0,.18), inset 0 8px 0 rgba(255,255,255,.3)}
+body.theme-space .panel::before{top:16%;width:30%;background:var(--doorc);border:3px solid #02040c;box-shadow:0 0 12px 2px var(--doorc)}
+body.theme-space .panel::after{border-radius:2px;background:#ff5b6e;border:2px solid #02040c;width:10%;top:66%}
+body.theme-space .door.locked .panel::before{box-shadow:none;filter:grayscale(1) brightness(.6)}
+body.theme-space .padlock .plk{fill:#ff5b6e}
+body.theme-space .pop{color:#aef8ff} body.theme-space .pop.neg{color:#ff7d8f}
+body.theme-space .door.open:hover .chest{animation:none;filter:brightness(1.2)}
+body.theme-space .name{letter-spacing:.1em;text-transform:uppercase;font-size:15px}
+
+/* ============ ARCADE THEME (8-bit) ============ */
+body.theme-arcade{
+  color-scheme:dark;
+  --bg:#000; --bg2:#000; --ink:#fff; --muted:#a8a8ff; --card:#000; --outline:#fff;
+  --yellow:#ffe600; --coral:#ff2e88; --frame:#3b5bff; --frame2:#3b5bff; --room:#000; --room2:#12003a;
+  --good:#00ff66; --warn:#ff9100;
+  font-family:"Press Start 2P","Silkscreen",ui-monospace,"SF Mono",Menlo,"Courier New",monospace;font-weight:700;
+  background:#000;
+}
+body.theme-arcade h1{text-transform:uppercase;font-size:28px;color:#ffe600;text-shadow:3px 3px 0 #ff2e88}
+body.theme-arcade .card, body.theme-arcade .stat{border-radius:0;box-shadow:6px 6px 0 #ff2e88}
+body.theme-arcade button.go, body.theme-arcade button.plain{border-radius:0;color:#000;box-shadow:4px 4px 0 #ff2e88;text-transform:uppercase}
+body.theme-arcade button.go:active, body.theme-arcade button.plain:active{box-shadow:1px 1px 0 #ff2e88}
+body.theme-arcade .skin{border-radius:0;text-transform:uppercase} body.theme-arcade .skin[aria-pressed="true"]{color:#000;box-shadow:3px 3px 0 #ff2e88}
+body.theme-arcade .grid input[type=number], body.theme-arcade .grid select, body.theme-arcade textarea{border-radius:0}
+body.theme-arcade .bar{border-radius:0} body.theme-arcade .bar i{border-radius:0;background:repeating-linear-gradient(90deg,#00ff66 0 10px,#000 10px 12px)}
+body.theme-arcade .stat .k, body.theme-arcade .name, body.theme-arcade .status{text-transform:uppercase}
+body.theme-arcade .frame{border-radius:0;box-shadow:6px 6px 0 #ff2e88;
+  background:linear-gradient(#000,#000) 0 33%/100% 3px no-repeat,linear-gradient(#000,#000) 0 66%/100% 3px no-repeat,
+             repeating-linear-gradient(90deg,transparent 0 22px,#000 22px 25px),var(--frame)}
+body.theme-arcade .room{border-radius:0}
+body.theme-arcade .door.open .room{background:linear-gradient(#000 0 40%,#2a0a6a 40% 70%,#5a1fb1 70%)}
+body.theme-arcade .panel{transition:none;border-right:6px solid #fff;box-shadow:none;
+  background:linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.35)) 0 100%/100% 12% no-repeat,var(--doorc)}
+body.theme-arcade .panel::before{border-radius:0;background:#000;border:4px solid #fff;width:36%;top:16%}
+body.theme-arcade .panel::after{border-radius:0;border:3px solid #000;background:#ffe600}
+body.theme-arcade .padlock .plk{fill:#ffe600}
+body.theme-arcade .pop{color:#ffe600;text-shadow:3px 3px 0 #000} body.theme-arcade .pop.neg{color:#ff2e88}
+body.theme-arcade .door.open:hover .chest{animation:none;filter:brightness(1.25)}
+body.theme-arcade .sparkle{animation-timing-function:steps(1,end)}
+body.theme-arcade table th, body.theme-arcade table td{border-bottom-style:solid}
+
+/* ============ UNDERSEA THEME ============ */
+body.theme-sea{
+  color-scheme:dark;
+  --bg:#063247; --bg2:#1a8fb0; --ink:#f1fbff; --muted:#a9d6e5; --card:#0d5a78; --outline:#04222f;
+  --yellow:#ffd166; --coral:#ff8a73; --frame:#ffa893; --frame2:#e0705a; --room:#03202c; --room2:#0b5672;
+  --good:#9dffcf; --warn:#ffd08a;
+  background:radial-gradient(circle 9px at 8% 78%,rgba(255,255,255,.22) 60%,transparent 62%),radial-gradient(circle 5px at 11% 60%,rgba(255,255,255,.2) 60%,transparent 62%),
+    radial-gradient(circle 7px at 92% 70%,rgba(255,255,255,.2) 60%,transparent 62%),radial-gradient(circle 4px at 88% 48%,rgba(255,255,255,.18) 60%,transparent 62%),
+    radial-gradient(circle 6px at 50% 92%,rgba(255,255,255,.16) 60%,transparent 62%),
+    linear-gradient(var(--bg2),var(--bg) 70%) fixed;
+}
+body.theme-sea h1{color:#ffe9a8}
+body.theme-sea .card, body.theme-sea .stat{border-radius:28px}
+body.theme-sea button.plain{background:#e8fbff}
+body.theme-sea .frame{border-radius:50% 50% 30px 30px / 34% 34% 14px 14px;
+  background:radial-gradient(circle 5px at 22% 30%,rgba(255,255,255,.4) 60%,transparent 62%),radial-gradient(circle 4px at 80% 55%,rgba(255,255,255,.35) 60%,transparent 62%),
+             radial-gradient(circle 6px at 70% 14%,rgba(0,0,0,.14) 60%,transparent 62%),linear-gradient(var(--frame),var(--frame2))}
+body.theme-sea .door.open .room{background:radial-gradient(ellipse at 50% 84%,#fff3b0 0,#35c4c9 36%,#03202c 80%)}
+body.theme-sea .panel{background:repeating-linear-gradient(90deg,transparent 0 31%,rgba(0,0,0,.22) 31% 33.3%),
+  linear-gradient(rgba(255,255,255,.12),rgba(0,40,60,.35)),var(--doorc)}
+body.theme-sea .panel::before{border:6px solid #d9a437;outline:3px solid var(--outline);background:rgba(160,240,255,.55)}
+body.theme-sea .panel::after{background:#d9a437}
+body.theme-sea .padlock .plk{fill:#d9a437}
+body.theme-sea .pop{color:#fff3b0} body.theme-sea .pop.neg{color:#ffb3a6}
+
+/* ---- end screen ---- */
+.big{font-size:54px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:8px 10px;border-bottom:2px dashed var(--muted);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+th:first-child,td:first-child{text-align:left}
+th{font-size:13px;color:var(--muted);font-weight:800}
+tr.best td{font-weight:900}
+
+/* ---- join, waiting and teacher screens ---- */
+.narrow{max-width:460px;margin-left:auto;margin-right:auto}
+.field{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted);margin:12px 0}
+.field[hidden]{display:none}
+.field input{font:inherit;font-size:18px;padding:10px 14px;border:2px solid var(--outline);border-radius:12px;background:var(--bg);color:var(--ink);width:100%}
+.seg{display:flex;gap:8px;margin-bottom:6px}
+.seg .skin{flex:1;text-align:center;padding:9px 10px;font-size:15px}
+.err{color:var(--warn);font-weight:700;min-height:1.4em;margin:8px 0}
+#join h1,#wait h1{text-align:center;margin:8vh 0 18px}
+.waitbig{font-size:26px;font-weight:900;text-align:center;margin:10px 0}
+.waitbig.count{font-size:96px;line-height:1.1;font-variant-numeric:tabular-nums}
+#wait .hint{text-align:center;margin-bottom:14px}
+.center{justify-content:center}
+.thead{display:flex;flex-wrap:wrap;gap:12px 32px;align-items:flex-end;margin-bottom:14px}
+.thead .k{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.code{font-size:64px;font-weight:900;line-height:1;letter-spacing:.04em;overflow-wrap:anywhere}
+.turl{font-size:22px;font-weight:800;overflow-wrap:anywhere}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tabs .skin{font-size:15px;padding:8px 18px}
+.tabpane{display:none}
+.tabpane.on{display:block}
+.prog{display:inline-block;vertical-align:middle;width:120px;height:12px;border:2px solid var(--outline);border-radius:99px;overflow:hidden;background:var(--bg);margin-right:8px}
+.prog i{display:block;height:100%;background:var(--coral)}
+button.x{font:inherit;border:0;background:none;color:var(--muted);cursor:pointer;font-weight:900;padding:0 6px}
+button.danger{background:#ffd9d2}
+button[disabled]{opacity:.5;cursor:not-allowed}
+.tiles{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.tiles .stat .v{font-size:30px}
+.hrow{display:flex;align-items:flex-end;gap:12px;margin:10px 0}
+.hlab{flex:0 0 150px;font-size:14px;font-weight:800;text-align:right}
+.hbars{flex:1;display:flex;align-items:flex-end;gap:2px;height:84px;border-bottom:2px solid var(--muted)}
+.hbar{flex:1;background:var(--coral);border-radius:4px 4px 0 0}
+.haxis{display:flex;justify-content:space-between;margin-left:162px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+h2{font-size:20px;margin:0 0 8px}
+.bigtable td{font-size:24px;font-weight:800;padding:12px 10px}
+.bigtable td:first-child{font-size:20px}
+body.nohints #msg{display:none}
+body.nohints .status{min-height:0}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ================= JOIN (the first screen: no instructions on purpose) ================= -->
+<div id="join" class="screen">
+  <h1 class="gtitle">Closing Time</h1>
+  <div class="card narrow">
+    <div class="seg" role="group" aria-label="Who are you?">
+      <button class="skin" id="role-student" type="button" aria-pressed="true">I'm a student</button>
+      <button class="skin" id="role-teacher" type="button" aria-pressed="false">I'm the teacher</button>
+    </div>
+    <form id="join-form" autocomplete="off">
+      <label class="field" id="f-name">Your name <input id="j-name" maxlength="24"></label>
+      <label class="field">Session code <input id="j-code" maxlength="20" autocapitalize="none" autocorrect="off" spellcheck="false"></label>
+      <label class="field" id="f-pass" hidden>Teacher password <input id="j-pass" type="password"></label>
+      <div class="err" id="join-error" role="alert"></div>
+      <button class="go" id="btn-join" type="submit">Join</button>
+    </form>
+  </div>
+</div>
+
+<!-- ================= WAITING ================= -->
+<div id="wait" class="screen">
+  <h1 class="gtitle">Closing Time</h1>
+  <div class="card narrow">
+    <div class="waitbig" id="wait-msg">Waiting for the game to start…</div>
+    <p class="hint" id="wait-who"></p>
+    <div class="row center"><button class="plain" id="btn-leave1" type="button">Leave session</button></div>
+  </div>
+</div>
+
+<!-- ================= SETUP (solo test version: add ?solo to the address) ================= -->
+<div id="setup" class="screen">
+  <h1 id="title" class="gtitle">Closing Time</h1>
+  <p class="sub" id="subtitle">Collect as many points as you can before your clicks run out.</p>
+
+  <div class="card" id="rules" hidden></div>
+
+  <div class="card">
+    <div id="solo-slot"><div id="settings-fields">
+      <div style="font-weight:800">Settings</div>
+      <div class="grid">
+        <label>Look and sounds <select id="s-theme"></select></label>
+        <label>Number of doors <input type="number" id="s-doors" min="1" max="12"></label>
+        <label>Clicks available <input type="number" id="s-clicks" min="1"></label>
+        <label>Time limit in seconds (0 = none) <input type="number" id="s-limit" min="0" step="any"></label>
+        <label>Last door left: seconds between automatic clicks (0 = off) <input type="number" id="s-auto" min="0" step="any"></label>
+        <label>n: ticks a door stays fully open <input type="number" id="s-n" min="0"></label>
+        <label>m: ticks it takes to close <input type="number" id="s-m" min="0"></label>
+        <label>Stagger: extra ticks between doors' first timers <input type="number" id="s-stagger" min="0"></label>
+        <label>Ticks per click <input type="number" id="s-clickticks" min="0" step="any"></label>
+        <label>Ticks per second of real time (0 = off) <input type="number" id="s-rate" min="0" step="any"></label>
+      </div>
+      <p class="hint" style="margin:0 0 8px">A tick is the unit of the door timers. With 1 tick per click and 0 per second, n and m are in clicks and waiting costs nothing. With 1 and 1, n and m are in seconds and every click fast-forwards the clock by a second.</p>
+      <label class="check"><input type="checkbox" id="s-countdown"> Show each door's countdown under it</label>
+      <label class="check"><input type="checkbox" id="s-shuffle"> Shuffle which door gets which distribution</label>
+      <label class="check"><input type="checkbox" id="s-clickstart"> Start the time limit on the player's first click (off = when the doors appear; in a class session, at the shared start)</label>
+      <label class="check"><input type="checkbox" id="s-sample"> Give each player a random draw from the list of distributions below (more doors = more chances at a good one)</label>
+      <label class="check"><input type="checkbox" id="s-averages"> Show each player their own average payout so far under every door</label>
+      <label class="check"><input type="checkbox" id="s-hints"> Show players the instructions and the captions under each door (off = they work it out themselves)</label>
+      <div style="margin-top:10px;font-size:14px;color:var(--muted)">Points distribution for each door (a JSON list; reused in order if there are more doors than entries)</div>
+      <textarea id="s-dists" spellcheck="false"></textarea>
+      <p class="hint">Types: <code>{"type":"quality","min":5,"max":10,"sd":5}</code> (each door gets its own true average, drawn at random between min and max for each player; each click pays a normal draw around it) &nbsp; <code>{"type":"normal","mean":6,"sd":3}</code> &nbsp; <code>{"type":"uniform","min":1,"max":10}</code> &nbsp; <code>{"type":"discrete","values":[0,5,20],"weights":[5,4,1]}</code> &nbsp; <code>{"type":"fixed","value":5}</code>. Add <code>"min"</code> or <code>"max"</code> to cap a distribution; without a <code>"min"</code>, points can come out negative. Points are rounded to whole numbers unless you add <code>"round":false</code>.</p>
+      <div class="row" style="margin-top:8px"><button class="plain" id="btn-defaults" type="button">Restore defaults</button>
+        <button class="plain" id="btn-mockup" type="button">Show a mid-game preview screen</button></div>
+    </div></div>
+    <div id="setup-error" role="alert"></div>
+    <button class="go" id="btn-start" type="button">Start game</button>
+  </div>
+</div>
+
+<!-- ================= GAME ================= -->
+<div id="game" class="screen">
+  <div class="hud">
+    <div class="stat" id="stat-clicks"><div class="k">Clicks left</div><div class="v" id="hud-clicks">0</div></div>
+    <div class="stat"><div class="k">Points</div><div class="v" id="hud-score">0</div></div>
+    <div class="stat" id="stat-time" hidden><div class="k" id="hud-time-k">Time</div><div class="v" id="hud-time">0:00</div></div>
+  </div>
+  <div class="bar" aria-hidden="true"><i id="hud-bar"></i></div>
+  <div id="msg" aria-live="polite"></div>
+  <div class="doors" id="doors"></div>
+  <div id="skinbar" role="group" aria-label="Choose a look"><span class="skinlabel">Look:</span><span id="skins"></span>
+    <button class="skin" id="btn-sound" type="button" aria-pressed="true">Sound: on</button></div>
+  <div id="mock-note">Preview only. This screen isn't a live game. <a href="?" style="color:inherit">Play the real thing</a></div>
+</div>
+
+<!-- ================= END ================= -->
+<div id="end" class="screen">
+  <h1>Game over</h1>
+  <div class="card">
+    <div class="hint" style="margin:0">Your score</div>
+    <div class="big" id="end-score">0</div>
+    <p id="end-summary" style="margin:10px 0 0"></p>
+  </div>
+  <div class="card">
+    <div class="tablewrap"><table id="end-table"></table></div>
+    <p class="hint" id="end-bench"></p>
+  </div>
+  <div class="card" id="end-class" hidden></div>
+  <div class="row">
+    <button class="go" id="btn-again" type="button">Play again</button>
+    <button class="plain" id="btn-settings" type="button">Change settings</button>
+    <button class="plain" id="btn-csv" type="button">Download my click log (CSV)</button>
+    <button class="plain" id="btn-leave2" type="button" hidden>Leave session</button>
+  </div>
+</div>
+
+<!-- ================= TEACHER VIEW ================= -->
+<div id="teacher" class="screen">
+  <div class="thead">
+    <div><div class="k">Session code</div><div class="code" id="t-code"></div></div>
+    <div><div class="k">Students join at</div><div class="turl" id="t-url"></div></div>
+    <div><div class="k" id="t-timer-k">Round time</div><div class="code" id="t-timer">–</div></div>
+  </div>
+  <div class="tabs" role="group" aria-label="Teacher view sections">
+    <button class="skin" type="button" data-tab="run" aria-pressed="true">Run the game</button>
+    <button class="skin" type="button" data-tab="results" aria-pressed="false">Results</button>
+    <button class="skin" type="button" data-tab="settings" aria-pressed="false">Settings</button>
+  </div>
+
+  <div class="tabpane on" id="tab-run">
+    <div class="card">
+      <p id="t-status" style="margin:0 0 12px;font-weight:800"></p>
+      <div class="row">
+        <button class="go" id="t-main" type="button"></button>
+        <button class="plain" id="t-reveal" type="button"></button>
+      </div>
+    </div>
+    <div class="card">
+      <label class="check" style="margin-top:0"><input type="checkbox" id="t-private"> Show scores and groups in this table (leave off while this screen is projected during a round)</label>
+      <div class="tablewrap"><table id="t-roster"></table></div>
+      <p class="hint" id="t-count"></p>
+    </div>
+    <div class="row">
+      <button class="plain" id="t-csv1" type="button">Download results (CSV)</button>
+      <button class="plain" id="t-csv2" type="button">Download every click (CSV)</button>
+      <button class="plain" id="t-shuffle" type="button">Reassign groups at random</button>
+      <button class="plain danger" id="t-reset" type="button">Reset session</button>
+      <button class="plain" id="t-exit" type="button">Exit teacher view</button>
+    </div>
+    <p class="hint" id="t-note"></p>
+  </div>
+
+  <div class="tabpane" id="tab-results">
+    <div class="card" style="padding:12px 20px"><label class="check" style="margin:0;font-size:16px">Show results for&nbsp; <select id="r-round" style="font:inherit;padding:6px 10px;border:2px solid var(--outline);border-radius:12px;background:var(--bg);color:var(--ink)"></select></label></div>
+    <div class="tiles" id="r-tiles"></div>
+    <div class="card"><h2>By group <span class="hint" style="font-weight:400">(the numbers for the tables on the slides)</span></h2><div class="tablewrap"><table id="r-groups" class="bigtable"></table></div><p id="r-compare" style="margin:12px 0 0;font-weight:800;font-size:20px"></p></div>
+    <div class="card"><h2>Scores</h2><div id="r-hist"></div></div>
+    <div class="card"><h2>Where the clicks went</h2><div class="tablewrap"><table id="r-doors"></table></div></div>
+    <div class="card"><label class="check" style="margin-top:0"><input type="checkbox" id="t-top"> Show the top five scores</label><div class="tablewrap"><table id="r-top"></table></div></div>
+  </div>
+
+  <div class="tabpane" id="tab-settings">
+    <div class="card">
+      <div id="t-slot"></div>
+      <div style="margin-top:16px;font-weight:800">Groups</div>
+      <p class="hint" style="margin:2px 0 8px">Students are split at random across the groups in this list, in proportion to each group's share. A group can override any setting above by name: <code>numDoors</code>, <code>totalClicks</code>, <code>timeLimit</code>, <code>clockStartsOnClick</code>, <code>autoClickSeconds</code>, <code>n</code>, <code>m</code>, <code>stagger</code>, <code>clickTicks</code>, <code>ticksPerSecond</code>, <code>showCountdown</code>, <code>shuffleDoors</code>, <code>sampleDoors</code>, <code>showAverages</code>, <code>showHints</code>, <code>doors</code>. Students don't see group names until you reveal the results.</p>
+      <textarea id="t-groups" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="plain" type="button" data-preset="one">One group</button>
+        <button class="plain" type="button" data-preset="never">Doors close vs. never close</button>
+        <button class="plain" type="button" data-preset="r1">Learning rounds: 3 doors (6, 8, 10), 30 seconds</button>
+        <button class="plain" type="button" data-preset="few">6 doors vs. 12 doors, 60 seconds</button>
+        <button class="plain" type="button" data-preset="avg">9 doors: averages hidden vs. shown, 60 seconds</button>
+        <button class="plain" type="button" data-preset="money">Money round (same 9 doors for everyone), 60 seconds</button>
+        <button class="plain" type="button" data-preset="shin">Switching costs a click (Shin &amp; Ariely)</button>
+      </div>
+      <div class="err" id="t-set-error" role="alert"></div>
+      <div class="row"><button class="go" id="t-save" type="button">Save settings</button><span class="hint" id="t-set-note" style="margin:0"></span></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-database-compat.min.js"></script>
+<script>
+/* ======================================================================
+   SETTINGS — every quantity the game uses lives here. Nothing below this
+   block hard-codes a number of doors, clicks, timers, or point values.
+   An experimental group is just a different copy of these values, e.g.
+     doors never close ........................ n: 99999
+     switching costs a click, doors vanish .... n: 0, m: 12, stagger: 0
+     switching costs a click, never vanish .... n: 0, m: 99999, stagger: 0
+     doors on a real-time clock ............... ticksPerSecond: 1 (n, m in seconds)
+   ====================================================================== */
+const DEFAULTS = {
+  numDoors: 3,          // how many doors
+  totalClicks: 30,      // clicks each player gets (99999 or more = unlimited: the clicks counter is hidden).
+                        //   Rule of thumb used throughout: one click per second of the time limit, since most people click faster than that.
+  autoClickSeconds: 0.2, // once only one door is left unlocked, the game clicks it for the player this often (0 = off); they can still click faster themselves
+  timeLimit: 30,        // seconds each player gets, shown as a countdown (0 = no limit). The defaults are the learning rounds:
+                        //   3 doors (6, 8, 10), 30 seconds, nothing explained, no averages shown.
+  clockStartsOnClick: true, // true = the time limit starts with the player's own first click; false = it starts when the doors
+                        //   appear (in a class session: at the shared start, so everyone finishes at the same moment)
+  // The door timers count "ticks". Each click adds clickTicks to every other door's
+  // timer; each real second adds ticksPerSecond to every door's timer. So:
+  //   clickTicks 1, ticksPerSecond 0 -> n and m are in clicks; waiting costs nothing
+  //   clickTicks 1, ticksPerSecond 1 -> n and m are in seconds; each click fast-forwards 1 second
+  //   clickTicks 0, ticksPerSecond 1 -> n and m are in seconds; clicks don't move the clock
+  clickTicks: 1,        // ticks added to the other doors' timers by each click
+  ticksPerSecond: 1,    // ticks added to every door's timer per real second (0 = time doesn't matter). With 1 and 1,
+                        //   n and m are in seconds and each click also fast-forwards the other doors by a second.
+  n: 6,                 // ticks a door stays fully open without attention
+  m: 6,                 // ticks it then takes to close; after n + m it locks
+  stagger: 2,           // extra ticks added to successive doors' first timers
+  showCountdown: false, // show "closes in X" / "locks in Y" under each door
+  shuffleDoors: true,   // randomly assign distributions to door positions
+  sampleDoors: false,   // true = each player's doors are a random draw from the list below (no repeats until the list runs out),
+                        //   so a player with more doors has more chances at a good one; false = the first numDoors entries, in order
+  showAverages: false,  // show under each door the player's OWN average payout from that door so far, and how many clicks it rests on.
+                        //   It saves them the arithmetic and the remembering; it tells them nothing they haven't already seen.
+  showHints: false,     // show the rules, the message line and the captions under the doors; off = players work it out
+  doors: [              // points distribution per door (cycled if too short)
+    // Round 1's doors: true averages q of 6, 8 and 10 for everyone, in a shuffled order. Each click pays
+    // round(normal(q, 5)). No floor, so a draw can come out negative (about 10% of clicks at the q = 6 door).
+    // A spread of 5 makes doors hard to tell apart: one click each on two doors 2 apart comes out in the right
+    // order only about 61% of the time, and being 90% sure which is better takes about 20 clicks on each.
+    { type: "normal", mean: 6, sd: 5 },
+    { type: "normal", mean: 8, sd: 5 },
+    { type: "normal", mean: 10, sd: 5 }
+    // Another type gives every door a random quality of its own, drawn fresh for each player:
+    //   { type: "quality", min: 5, max: 10, sd: 5 }   ->  q uniform between min and max, then round(normal(q, sd)) per click
+  ],
+  theme: "cuddly",      // the look and sounds: "cuddly" or "dungeon"
+  minAjar: 0.2          // a closing door is drawn at least this far closed
+};
+
+/* ======================= random draws ======================= */
+function randNormal(rnd){ let u=0,v=0; while(!u)u=rnd(); while(!v)v=rnd(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function drawPoints(spec,rnd){
+  rnd=rnd||Math.random;
+  let x;
+  const rounded = spec.round !== false;
+  if(spec.type==="normal"){ x = spec.mean + (spec.sd||0)*randNormal(rnd); }
+  else if(spec.type==="uniform"){ x = rounded ? Math.floor(spec.min + rnd()*(spec.max-spec.min+1)) : spec.min + rnd()*(spec.max-spec.min); }
+  else if(spec.type==="discrete"){
+    const w = spec.weights || spec.values.map(()=>1); const tot = w.reduce((a,b)=>a+b,0);
+    let r = rnd()*tot, i=0; while(i<w.length-1 && r>=w[i]){ r-=w[i]; i++; } x = spec.values[i];
+  }
+  else if(spec.type==="fixed"){ x = spec.value; }
+  else throw new Error('Unknown distribution type "'+spec.type+'"');
+  if(typeof spec.min==="number") x=Math.max(spec.min,x);
+  if(typeof spec.max==="number") x=Math.min(spec.max,x);
+  return rounded ? Math.round(x) : Math.round(x*100)/100;
+}
+// A door's true average, from 20,000 simulated draws. The draws use a fixed seed, so every browser gets the same
+// number for the same distribution (students and the teacher view then agree on which door is best).
+function seeded(seed){ return function(){ seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const meanCache={};
+function trueMean(spec){
+  const capped=typeof spec.min==="number"||typeof spec.max==="number";
+  if(spec.type==="normal" && !capped) return spec.mean;
+  if(spec.type==="fixed" && !capped) return spec.value;
+  if(spec.type==="uniform" || spec.type==="quality") return (spec.min+spec.max)/2;
+  if(spec.type==="discrete" && !capped){ const w=spec.weights||spec.values.map(()=>1); return spec.values.reduce((a,v,i)=>a+v*w[i],0)/w.reduce((a,b)=>a+b,0); }
+  const k=JSON.stringify(spec); if(k in meanCache) return meanCache[k];
+  const rnd=seeded(249); let s=0; const N=20000; for(let i=0;i<N;i++) s+=drawPoints(spec,rnd); return meanCache[k]=s/N;
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function validateSpec(spec){
+  if(!spec || typeof spec!=="object") throw new Error("Each distribution must be an object like {\"type\":\"normal\",...}");
+  const num=(k)=>{ if(typeof spec[k]!=="number"||!isFinite(spec[k])) throw new Error('A "'+spec.type+'" distribution needs a number for "'+k+'"'); };
+  if(spec.type==="normal"){ num("mean"); if(spec.sd!==undefined) num("sd"); }
+  else if(spec.type==="uniform"){ num("min"); num("max"); if(spec.max<spec.min) throw new Error("uniform: max is below min"); }
+  else if(spec.type==="discrete"){
+    if(!Array.isArray(spec.values)||!spec.values.length) throw new Error('discrete needs a "values" list');
+    if(spec.weights && spec.weights.length!==spec.values.length) throw new Error("discrete: weights and values differ in length");
+  }
+  else if(spec.type==="fixed"){ num("value"); }
+  else if(spec.type==="quality"){ num("min"); num("max"); if(spec.max<spec.min) throw new Error("quality: max is below min"); if(spec.sd!==undefined) num("sd"); }
+  else throw new Error('Unknown distribution type "'+spec.type+'"');
+}
+
+/* ======================= game engine (no DOM) ======================= */
+// A door's "idle" count is how many ticks have passed since it was last clicked
+// (ticks come from clicks on other doors and, optionally, from real time).
+// open: idle <= n.  closing: n < idle < n+m.  locked: idle >= n+m.
+function timeUsed(g){ return g.cfg.clockStartsOnClick===false ? (g.clock||0) : g.elapsed; }   // seconds counted against the time limit
+function doorState(d,cfg){
+  const s = d.idle - cfg.n;
+  if(s<=0) return {state:"open", step:0, left:-s};                       // left = ticks until it starts closing
+  if(s>=cfg.m) return {state:"locked", step:cfg.m, left:0};
+  return {state:"closing", step:Math.ceil(s), left:cfg.m - s};           // left = ticks until it locks
+}
+function stateList(g){ return g.doors.map(o=>{ const s=doorState(o,g.cfg); return s.state==="closing" ? "closing "+s.step+"/"+g.cfg.m : s.state; }); }
+function checkOver(g){
+  if(g.doors.every(o=>doorState(o,g.cfg).state==="locked")){ g.over=true; g.endReason="locked"; }
+  else if(g.clicksLeft<=0){ g.over=true; g.endReason="clicks"; }
+  else if(g.cfg.timeLimit>0 && timeUsed(g)>=g.cfg.timeLimit){ g.over=true; g.endReason="time"; }
+}
+function newGame(cfg){
+  const specs=[];
+  if(cfg.sampleDoors){ let pool=[]; for(let i=0;i<cfg.numDoors;i++){ if(!pool.length) pool=shuffle([...cfg.doors.keys()]); const di=pool.pop(); specs.push({spec:cfg.doors[di], di}); } }
+  else for(let i=0;i<cfg.numDoors;i++) specs.push({spec:cfg.doors[i % cfg.doors.length], di:i % cfg.doors.length});
+  if(cfg.shuffleDoors) shuffle(specs);
+  const order = shuffle([...Array(cfg.numDoors).keys()]);
+  specs.forEach(s=>{                                       // a "quality" entry becomes this door's own normal distribution
+    if(s.spec.type==="quality"){ const q=Math.round((s.spec.min+Math.random()*(s.spec.max-s.spec.min))*100)/100; s.spec={type:"normal", mean:q, sd:s.spec.sd===undefined?5:s.spec.sd}; }
+  });
+  const doors = specs.map(s=>({spec:s.spec, di:s.di, mu:Math.round(trueMean(s.spec)*100)/100, idle:0, chestClicks:0, points:0, reopens:0, lockedAt:null, lockedSec:null}));
+  order.forEach((d,rank)=>{ doors[d].idle = -rank*cfg.stagger; });   // staggered head starts
+  return {cfg, doors, clicksLeft:cfg.totalClicks, score:0, t:0, reopens:0, log:[], over:false, endReason:null,
+          started:false, elapsed:0, clock:0};                        // elapsed = seconds since the first click; clock = seconds since the doors appeared
+}
+function clickDoor(g,i){
+  const cfg=g.cfg, d=g.doors[i], st=doorState(d,cfg).state;
+  if(g.over || st==="locked") return {type:"blocked"};
+  let points=0, type;
+  if(st==="open"){ type="chest"; points=drawPoints(d.spec); d.chestClicks++; d.points+=points; g.score+=points; }
+  else { type="reopen"; d.reopens++; g.reopens++; }
+  g.started=true; g.t++; g.clicksLeft--;
+  d.idle=0;
+  const newlyLocked=[];
+  g.doors.forEach((o,j)=>{
+    if(j===i || doorState(o,cfg).state==="locked") return;
+    o.idle+=cfg.clickTicks;
+    if(doorState(o,cfg).state==="locked"){ o.lockedAt=g.t; o.lockedSec=g.elapsed; newlyLocked.push(j); }
+  });
+  checkOver(g);
+  g.log.push({t:g.t, sec:g.elapsed, door:i+1, di:d.di, mu:d.mu, action:type, points, score:g.score, states:stateList(g)});
+  return {type, points, newlyLocked};
+}
+// Real time passing: dt seconds. Always tracks elapsed time; ages the doors only if ticksPerSecond > 0.
+function advanceTime(g,dt){
+  const cfg=g.cfg, newlyLocked=[];
+  if(g.over) return newlyLocked;
+  g.clock=(g.clock||0)+dt;                                 // the time limit counts from the moment the doors appear
+  if(g.started) g.elapsed+=dt;
+  if(g.started && cfg.ticksPerSecond>0) g.doors.forEach((o,j)=>{
+    if(doorState(o,cfg).state==="locked") return;
+    o.idle+=dt*cfg.ticksPerSecond;
+    if(doorState(o,cfg).state==="locked"){
+      o.lockedAt=g.t; o.lockedSec=g.elapsed; newlyLocked.push(j);
+      g.log.push({t:g.t, sec:g.elapsed, door:j+1, di:o.di, mu:o.mu, action:"locked", points:0, score:g.score, states:stateList(g)});
+    }
+  });
+  checkOver(g);
+  if(g.over && g.endReason==="time") g.log.push({t:g.t, sec:g.elapsed, door:"", action:"time up", points:0, score:g.score, states:stateList(g)});
+  return newlyLocked;
+}
+
+/* ======================= sound effects (synthesized, no audio files) ======================= */
+let AC=null, soundOn=true;
+try{ soundOn = localStorage.getItem("doorsGameSound")!=="off"; }catch(e){}
+function audio(){
+  if(!soundOn) return null;
+  if(!AC){ const C=window.AudioContext||window.webkitAudioContext; if(!C) return null; AC=new C(); }
+  if(AC.state==="suspended") AC.resume();
+  return AC;
+}
+function tone(o){   // o: {type, f, f2, t, dur, vol, vib}
+  const a=audio(); if(!a) return;
+  const osc=a.createOscillator(), g=a.createGain(), t0=a.currentTime+(o.t||0), dur=o.dur||.15;
+  osc.type=o.type||"sine"; osc.frequency.setValueAtTime(o.f,t0);
+  if(o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2,t0+dur);
+  g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(o.vol||.15,t0+0.015); g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  osc.connect(g); g.connect(a.destination); osc.start(t0); osc.stop(t0+dur+.05);
+  if(o.vib){ const l=a.createOscillator(), lg=a.createGain(); l.frequency.value=o.vib; lg.gain.value=o.f*0.04; l.connect(lg); lg.connect(osc.frequency); l.start(t0); l.stop(t0+dur+.05); }
+}
+function thud(t,dur,vol,kind,freq){   // a burst of filtered noise: low for thuds, high for hisses
+  const a=audio(); if(!a) return;
+  const n=Math.floor(a.sampleRate*dur), buf=a.createBuffer(1,n,a.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+  const src=a.createBufferSource(), lp=a.createBiquadFilter(), g=a.createGain();
+  src.buffer=buf; lp.type=kind||"lowpass"; lp.frequency.value=freq||420; g.gain.value=vol;
+  src.connect(lp); lp.connect(g); g.connect(a.destination); src.start(a.currentTime+t);
+}
+const SOUNDS={
+  cuddly:{
+    coin(){ tone({type:"square",f:988,dur:.09,vol:.11}); tone({type:"square",f:1319,t:.085,dur:.34,vol:.11}); },              // ka-ching
+    bad(){ tone({type:"triangle",f:440,f2:196,dur:.3,vol:.2}); tone({type:"triangle",f:196,f2:98,t:.3,dur:.35,vol:.2,vib:9}); }, // boo-woop
+    reopen(){ tone({type:"sawtooth",f:150,f2:520,dur:.36,vol:.09,vib:24}); tone({type:"triangle",f:784,t:.36,dur:.12,vol:.13}); }, // creeeak-pop
+    lock(){ thud(0,.18,.7); tone({type:"sine",f:130,f2:45,dur:.24,vol:.5});                                                   // slam...
+            [311,294,277].forEach((f,i)=>tone({type:"sawtooth",f,t:.3+i*.3,dur:.27,vol:.1}));                                  // ...womp womp womp
+            tone({type:"sawtooth",f:262,f2:220,t:1.2,dur:.75,vol:.1,vib:6}); },                                                // ...waaah
+    blocked(){ tone({type:"square",f:104,dur:.13,vol:.09}); },
+    fanfare(){ [523,659,784,1047].forEach((f,i)=>tone({type:"square",f,t:i*.12,dur:i===3?.45:.1,vol:.09})); }
+  },
+  dungeon:{
+    coin(){ [2093,2637,3136].forEach((f,i)=>tone({type:"triangle",f,t:i*.035,dur:.22,vol:.1})); tone({type:"sine",f:1047,dur:.3,vol:.06}); }, // coins clinking
+    bad(){ tone({type:"sawtooth",f:92,f2:58,dur:.55,vol:.2,vib:31}); thud(0,.25,.4); },                                         // a growl in the dark
+    reopen(){ tone({type:"sawtooth",f:62,f2:150,dur:.6,vol:.12,vib:17}); thud(.58,.12,.5); },                                   // heavy hinges groan
+    lock(){ thud(0,.4,1); tone({type:"sine",f:90,f2:32,dur:.5,vol:.6});                                                         // stone slams shut...
+            tone({type:"sawtooth",f:98,t:.45,dur:1.3,vol:.1,vib:5}); tone({type:"sawtooth",f:147,t:.6,dur:1.15,vol:.07,vib:5}); },  // ...and a far-off war horn
+    blocked(){ thud(0,.1,.6); tone({type:"square",f:70,dur:.12,vol:.08}); },
+    fanfare(){ [196,196,294].forEach((f,i)=>tone({type:"sawtooth",f,t:i*.28,dur:i===2?.9:.22,vol:.1,vib:i===2?5:0})); }
+  },
+  space:{
+    coin(){ tone({type:"sine",f:520,f2:1900,dur:.14,vol:.16}); tone({type:"sine",f:1900,t:.13,dur:.2,vol:.1}); },                 // pew-ding
+    bad(){ tone({type:"sawtooth",f:300,f2:70,dur:.45,vol:.13}); tone({type:"square",f:70,t:.4,dur:.2,vol:.08}); },                // power-down
+    reopen(){ thud(0,.3,.25,"highpass",2500); tone({type:"sine",f:180,f2:620,dur:.34,vol:.12}); },                                // airlock hiss + servo
+    lock(){ thud(0,.3,.9); tone({type:"sine",f:110,f2:40,dur:.35,vol:.5});                                                        // bulkhead slam...
+            [0,.36,.72].forEach(t=>{ tone({type:"square",f:440,t:.4+t,dur:.16,vol:.07}); tone({type:"square",f:330,t:.58+t,dur:.16,vol:.07}); }); }, // ...alarm
+    blocked(){ tone({type:"square",f:150,dur:.09,vol:.08}); tone({type:"square",f:150,t:.13,dur:.09,vol:.08}); },
+    fanfare(){ [392,523,659,784,1047].forEach((f,i)=>tone({type:"sine",f,t:i*.1,dur:i===4?.6:.14,vol:.14})); }
+  },
+  arcade:{
+    coin(){ [1047,1319,1568,2093].forEach((f,i)=>tone({type:"square",f,t:i*.05,dur:i===3?.2:.05,vol:.09})); },                    // 8-bit pickup
+    bad(){ [392,330,262,196].forEach((f,i)=>tone({type:"square",f,t:i*.07,dur:.07,vol:.1})); },                                   // 8-bit ouch
+    reopen(){ tone({type:"square",f:220,f2:880,dur:.2,vol:.09}); },                                                               // jump
+    lock(){ [523,494,466,440,415,392].forEach((f,i)=>tone({type:"square",f,t:i*.11,dur:.11,vol:.09}));                            // game-over slide...
+            tone({type:"square",f:98,t:.7,dur:.5,vol:.12}); },                                                                    // ...bonk
+    blocked(){ tone({type:"square",f:98,dur:.1,vol:.1}); },
+    fanfare(){ [659,784,1319,1047,1175,1568].forEach((f,i)=>tone({type:"square",f,t:i*.09,dur:i===5?.35:.09,vol:.09})); }
+  },
+  sea:{
+    coin(){ tone({type:"sine",f:300,f2:900,dur:.1,vol:.2}); tone({type:"sine",f:450,f2:1350,t:.11,dur:.12,vol:.2}); },            // bloop-bloop
+    bad(){ tone({type:"sine",f:260,f2:70,dur:.5,vol:.25,vib:12}); },                                                              // glub
+    reopen(){ tone({type:"sine",f:140,f2:320,dur:.45,vol:.18,vib:14}); tone({type:"sine",f:700,f2:1500,t:.42,dur:.08,vol:.14}); },// watery creak + bubble
+    lock(){ thud(0,.35,.8,"lowpass",220); tone({type:"sine",f:100,f2:45,dur:.4,vol:.5});                                          // muffled thump...
+            tone({type:"sine",f:330,f2:150,t:.4,dur:1.4,vol:.16,vib:4}); },                                                       // ...a mournful whale
+    blocked(){ tone({type:"sine",f:120,f2:90,dur:.15,vol:.2}); },
+    fanfare(){ [400,520,660,820,1000,1250].forEach((f,i)=>tone({type:"sine",f,f2:f*1.5,t:i*.09,dur:.1,vol:.16})); }
+  }
+};
+// The looks. Each theme is a body class (see the CSS), a chest drawing, a sound set, and a title.
+const THEMES={
+  cuddly:{ label:"Cuddly",  title:"Closing Time", subtitle:"Collect as many points as you can before your clicks run out." },
+  dungeon:{label:"Dungeon", title:"Closing Time", subtitle:"Plunder what gold you can before your clicks run out." },
+  space:{  label:"Space",   title:"Closing Time", subtitle:"Grab as many crystals as you can before your clicks run out." },
+  arcade:{ label:"Arcade",  title:"Closing Time", subtitle:"Insert clicks. Collect points. Don't get locked out." },
+  sea:{    label:"Undersea",title:"Closing Time", subtitle:"Scoop up as many pearls as you can before your clicks run out." }
+};
+let currentTheme="cuddly";
+// Switches the look and sounds. Safe to call mid-game: it only swaps the styling and the chest drawings.
+function applyTheme(name, byPlayer){
+  const changed = THEMES[name] && name!==currentTheme;
+  currentTheme = THEMES[name] ? name : "cuddly";
+  Object.keys(THEMES).forEach(t=>document.body.classList.toggle("theme-"+t, t===currentTheme));
+  document.querySelectorAll(".gtitle").forEach(e=>{ e.textContent=THEMES[currentTheme].title; }); $("subtitle").textContent=THEMES[currentTheme].subtitle;
+  document.title=THEMES[currentTheme].title;
+  if(cfg) cfg.theme=currentTheme;
+  $("s-theme").value=currentTheme;
+  [...$("skins").children].forEach(b=>b.setAttribute("aria-pressed", b.dataset.theme===currentTheme ? "true":"false"));
+  [...$("doors").querySelectorAll(".chest")].forEach(c=>{ c.innerHTML=CHESTS[currentTheme]; });
+  if(byPlayer){
+    try{ localStorage.setItem("doorsGameSkin",currentTheme); }catch(e){}
+    if(changed && game && game.started && !game.ending) game.log.push({t:game.t, sec:game.elapsed, door:"", action:"skin:"+currentTheme, points:0, score:game.score, states:stateList(game)});
+  }
+}
+function buildSkinControls(){
+  Object.keys(THEMES).forEach(t=>{
+    const o=document.createElement("option"); o.value=t; o.textContent=THEMES[t].label; $("s-theme").appendChild(o);
+    const b=document.createElement("button"); b.type="button"; b.className="skin"; b.dataset.theme=t; b.textContent=THEMES[t].label;
+    b.addEventListener("click",()=>{ applyTheme(t,true); sfx("coin"); });
+    $("skins").appendChild(b);
+  });
+}
+function sfx(name){ SOUNDS[currentTheme][name](); }
+function setSound(on){
+  soundOn=on; try{ localStorage.setItem("doorsGameSound",on?"on":"off"); }catch(e){}
+  const b=$("btn-sound"); b.textContent="Sound: "+(on?"on":"off"); b.setAttribute("aria-pressed",on?"true":"false");
+}
+
+/* ======================= settings form ======================= */
+const $=id=>document.getElementById(id);
+let cfg=null, game=null;
+function loadSaved(){
+  let c=JSON.parse(JSON.stringify(DEFAULTS));
+  try{ const s=localStorage.getItem("doorsGameSettings5"); if(s) c=Object.assign(c,JSON.parse(s)); }catch(e){}
+  const q=new URLSearchParams(location.search);
+  const qi=(k,f)=>{ if(q.has(k) && q.get(k)!=="" && isFinite(+q.get(k))) c[f]=+q.get(k); };
+  qi("doors","numDoors"); qi("clicks","totalClicks"); qi("n","n"); qi("m","m"); qi("stagger","stagger");
+  qi("clickticks","clickTicks"); qi("rate","ticksPerSecond"); qi("limit","timeLimit"); qi("auto","autoClickSeconds");
+  if(q.has("countdown")) c.showCountdown = q.get("countdown")!=="0";
+  if(q.has("hints")) c.showHints = q.get("hints")!=="0";
+  try{ const k=localStorage.getItem("doorsGameSkin"); if(k && THEMES[k]) c.theme=k; }catch(e){}   // the player's last pick
+  if(q.has("theme") && THEMES[q.get("theme")]) c.theme=q.get("theme");
+  if(!THEMES[c.theme]) c.theme="cuddly";
+  return c;
+}
+function fillForm(c){
+  $("s-doors").value=c.numDoors; $("s-clicks").value=c.totalClicks; $("s-n").value=c.n; $("s-m").value=c.m; $("s-stagger").value=c.stagger;
+  $("s-clickticks").value=c.clickTicks; $("s-rate").value=c.ticksPerSecond; $("s-limit").value=c.timeLimit||0; $("s-auto").value=c.autoClickSeconds||0;
+  $("s-countdown").checked=!!c.showCountdown; $("s-shuffle").checked=!!c.shuffleDoors; $("s-sample").checked=!!c.sampleDoors; $("s-clickstart").checked=c.clockStartsOnClick!==false; $("s-hints").checked=!!c.showHints; $("s-averages").checked=!!c.showAverages;
+  $("s-theme").value=c.theme; applyTheme(c.theme);
+  $("s-dists").value="[\n"+c.doors.map(d=>"  "+JSON.stringify(d)).join(",\n")+"\n]";
+  showRules(c);
+}
+function readForm(){
+  const int=(id,label,min)=>{ const v=Number($(id).value); if(!Number.isInteger(v)||v<min) throw new Error(label+" must be a whole number of at least "+min+"."); return v; };
+  const c=JSON.parse(JSON.stringify(DEFAULTS));
+  c.numDoors=int("s-doors","Number of doors",1); if(c.numDoors>12) throw new Error("Use 12 doors or fewer.");
+  c.totalClicks=int("s-clicks","Clicks available",1);
+  const num=(id,label)=>{ const v=Number($(id).value); if($(id).value===""||!isFinite(v)||v<0) throw new Error(label+" must be a number of at least 0."); return v; };
+  c.n=int("s-n","n",0); c.m=int("s-m","m",0); c.stagger=int("s-stagger","Stagger",0);
+  c.clickTicks=num("s-clickticks","Ticks per click"); c.ticksPerSecond=num("s-rate","Ticks per second"); c.timeLimit=num("s-limit","The time limit"); c.autoClickSeconds=num("s-auto","The automatic-click interval");
+  c.showCountdown=$("s-countdown").checked; c.shuffleDoors=$("s-shuffle").checked; c.sampleDoors=$("s-sample").checked; c.clockStartsOnClick=$("s-clickstart").checked; c.showHints=$("s-hints").checked; c.showAverages=$("s-averages").checked;
+  c.theme=THEMES[$("s-theme").value] ? $("s-theme").value : "cuddly";
+  let d; try{ d=JSON.parse($("s-dists").value); }catch(e){ throw new Error("The points distributions aren't valid JSON: "+e.message); }
+  if(!Array.isArray(d)||!d.length) throw new Error("The points distributions must be a list with at least one entry.");
+  d.forEach(validateSpec); c.doors=d;
+  return c;
+}
+function showRules(c){
+  const timed = c.ticksPerSecond>0;
+  const never = c.n>=99999 || (!timed && c.n>=c.totalClicks*c.clickTicks);
+  let h="<strong>How to play.</strong> You have <strong>"+(c.totalClicks>=99999?"":c.totalClicks+" clicks"+(c.timeLimit>0?", ":" and "))+(c.timeLimit>0?clock(c.timeLimit)+" on the clock and ":"")+"</strong><strong>"+c.numDoors+" door"+(c.numDoors===1?"":"s")+"</strong>. "+
+        "Each open door shows a treasure chest. Click a chest to collect points; each door pays differently, and you'll have to find out how. ";
+  if(!never){
+    if(timed) h+="The doors are on a <strong>timer that runs in real time</strong>, even when you aren't clicking"+(c.clickTicks>0?", and every click fast-forwards it":"")+
+                 ". Clicking a door resets that door's timer. The timer starts with your first click. ";
+    else h+="Every click runs the clock for the other doors. ";
+    h+="A door you ignore starts to close, and once it's fully closed it locks for good. "+
+       "While a door is closing you can't reach its chest. Clicking the door reopens it, but that uses a click and earns nothing.";
+    if(timed) h+=" If every door locks, the game ends.";
+  }
+  $("rules").innerHTML=h; $("rules").hidden=!c.showHints;
+}
+
+/* ======================= rendering ======================= */
+const OL='stroke="#3d2a1e" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"';
+// One chest drawing with two looks: open (lid up, coins, awake) and closed (lid down, asleep).
+const CHEST='<svg viewBox="0 0 120 112" aria-hidden="true">'+
+  '<ellipse cx="60" cy="104" rx="46" ry="6" fill="rgba(0,0,0,.35)"/>'+
+  '<g class="is-open">'+
+    '<path d="M20 52 Q18 10 60 10 Q102 10 100 52 Z" fill="#c9772e" '+OL+'/>'+
+    '<path d="M30 50 Q30 22 60 22 Q90 22 90 50 Z" fill="#8f4e1c"/>'+
+    '<g '+OL.replace('stroke-width="4"','stroke-width="3"')+' fill="#ffd65a">'+
+      '<circle cx="42" cy="50" r="9"/><circle cx="78" cy="50" r="9"/><circle cx="60" cy="44" r="10"/><circle cx="52" cy="56" r="8"/><circle cx="69" cy="56" r="8"/></g>'+
+    '<path class="sparkle" d="M30 26 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#fff8d6"/>'+
+    '<path class="sparkle b" d="M92 20 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5z" fill="#fff8d6"/>'+
+    '<path class="sparkle c" d="M61 4 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" fill="#fff8d6"/>'+
+  '</g>'+
+  '<rect x="14" y="56" width="92" height="44" rx="13" fill="#f2a44b" '+OL+'/>'+
+  '<g class="is-closed">'+
+    '<path d="M14 62 Q12 24 60 24 Q108 24 106 62 Z" fill="#f7b765" '+OL+'/>'+
+    '<path d="M32 30 V60 M88 30 V60" fill="none" stroke="#ffd65a" stroke-width="7"/>'+
+  '</g>'+
+  '<rect x="14" y="57" width="92" height="9" fill="#ffd65a" stroke="#3d2a1e" stroke-width="3"/>'+
+  '<rect x="51" y="55" width="18" height="16" rx="5" fill="#ffe89a" stroke="#3d2a1e" stroke-width="3"/><circle cx="60" cy="63" r="2.4" fill="#3d2a1e"/>'+
+  '<circle cx="36" cy="88" r="5.5" fill="#ff9aa2" opacity=".75"/><circle cx="84" cy="88" r="5.5" fill="#ff9aa2" opacity=".75"/>'+
+  '<g class="is-open"><circle cx="45" cy="82" r="5" fill="#3d2a1e"/><circle cx="75" cy="82" r="5" fill="#3d2a1e"/>'+
+    '<circle cx="46.8" cy="80.2" r="1.7" fill="#fff"/><circle cx="76.8" cy="80.2" r="1.7" fill="#fff"/>'+
+    '<path d="M52 88 Q60 96 68 88" fill="none" stroke="#3d2a1e" stroke-width="3" stroke-linecap="round"/></g>'+
+  '<g class="is-closed" fill="none" stroke="#3d2a1e" stroke-width="3" stroke-linecap="round">'+
+    '<path d="M40 82 Q45 87 50 82"/><path d="M70 82 Q75 87 80 82"/><path d="M56 91 Q60 93 64 91"/></g>'+
+  '</svg>';
+const IR='stroke="#120c08" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"';
+// Dungeon chest: dark oak, iron bands, no face. Same two looks (open / closed).
+const CHEST_DUNGEON='<svg viewBox="0 0 120 112" aria-hidden="true">'+
+  '<ellipse cx="60" cy="104" rx="48" ry="6" fill="rgba(0,0,0,.6)"/>'+
+  '<g class="is-open">'+
+    '<path d="M18 54 Q16 12 60 12 Q104 12 102 54 Z" fill="#4a2e17" '+IR+'/>'+
+    '<path d="M28 52 Q28 24 60 24 Q92 24 92 52 Z" fill="#1c120a"/>'+
+    '<g stroke="#6b4a06" stroke-width="2.5" fill="#e3b021">'+
+      '<circle cx="38" cy="52" r="8"/><circle cx="82" cy="52" r="8"/><circle cx="60" cy="43" r="10"/><circle cx="49" cy="50" r="8"/><circle cx="71" cy="50" r="8"/><circle cx="55" cy="57" r="7"/><circle cx="66" cy="57" r="7"/></g>'+
+    '<path d="M60 30 l7 8 -7 9 -7 -9z" fill="#c8102e" stroke="#4d0611" stroke-width="2"/>'+
+    '<path d="M84 38 l5 6 -5 6 -5 -6z" fill="#2fa36b" stroke="#0e3d27" stroke-width="2"/>'+
+    '<path class="sparkle" d="M30 28 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#ffe9a8"/>'+
+    '<path class="sparkle b" d="M94 22 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5z" fill="#ffe9a8"/>'+
+  '</g>'+
+  '<rect x="12" y="56" width="96" height="44" rx="5" fill="#6b4423" '+IR+'/>'+
+  '<path d="M12 78 H108" stroke="#3f2713" stroke-width="3"/>'+
+  '<g class="is-closed">'+
+    '<path d="M12 62 Q10 22 60 22 Q110 22 108 62 Z" fill="#7a4e28" '+IR+'/>'+
+    '<path d="M26 31 V60 M94 31 V60" fill="none" stroke="#3b3b3b" stroke-width="9"/>'+
+  '</g>'+
+  '<rect x="21.5" y="58" width="9" height="42" fill="#3b3b3b"/><rect x="89.5" y="58" width="9" height="42" fill="#3b3b3b"/>'+
+  '<rect x="12" y="57" width="96" height="9" fill="#3b3b3b" stroke="#120c08" stroke-width="3"/>'+
+  '<g fill="#8d8d8d"><circle cx="26" cy="72" r="2"/><circle cx="26" cy="90" r="2"/><circle cx="94" cy="72" r="2"/><circle cx="94" cy="90" r="2"/></g>'+
+  '<path d="M50 54 h20 v14 l-10 8 -10 -8z" fill="#55514b" stroke="#120c08" stroke-width="3" stroke-linejoin="round"/>'+
+  '<circle cx="60" cy="62" r="2.6" fill="#120c08"/><rect x="58.8" y="62" width="2.4" height="7" fill="#120c08"/>'+
+  '</svg>';
+const SPK='<path class="sparkle" d="M30 26 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#fff"/><path class="sparkle b" d="M92 20 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5z" fill="#fff"/>';
+// Space: a cargo crate. Open = lid up, glowing crystals, cyan light bar. Closed = sealed, red light bar.
+const CHEST_SPACE='<svg viewBox="0 0 120 112" aria-hidden="true">'+
+  '<ellipse cx="60" cy="104" rx="48" ry="6" fill="rgba(0,0,0,.55)"/>'+
+  '<g class="is-open">'+
+    '<path d="M16 54 L28 16 H92 L104 54 Z" fill="#56617a" stroke="#02040c" stroke-width="4" stroke-linejoin="round"/>'+
+    '<path d="M27 52 L35 24 H85 L93 52 Z" fill="#0a1030"/>'+
+    '<g stroke="#02040c" stroke-width="2.5" stroke-linejoin="round"><path d="M36 58 L45 28 L54 58Z" fill="#5ef2ff"/><path d="M51 60 L62 14 L73 60Z" fill="#b388ff"/><path d="M68 58 L78 30 L87 58Z" fill="#ff6bf0"/></g>'+SPK+
+  '</g>'+
+  '<rect x="12" y="54" width="96" height="46" rx="7" fill="#8d99b3" stroke="#02040c" stroke-width="4"/>'+
+  '<path d="M14 72 H106" stroke="#5c677f" stroke-width="3"/>'+
+  '<g class="is-closed"><rect x="12" y="36" width="96" height="24" rx="7" fill="#aeb9d0" stroke="#02040c" stroke-width="4"/>'+
+    '<rect x="47" y="29" width="26" height="9" rx="3" fill="#56617a" stroke="#02040c" stroke-width="3"/></g>'+
+  '<rect class="is-open" x="22" y="83" width="76" height="7" rx="3.5" fill="#5ef2ff"/>'+
+  '<rect class="is-closed" x="22" y="83" width="76" height="7" rx="3.5" fill="#ff5b6e"/>'+
+  '<circle cx="60" cy="66" r="6" fill="#e3ecff" stroke="#02040c" stroke-width="3"/>'+
+  '</svg>';
+// Arcade: a chest made of square pixels.
+const CHEST_ARCADE='<svg viewBox="0 0 120 112" aria-hidden="true" shape-rendering="crispEdges">'+
+  '<g class="is-open"><rect x="12" y="4" width="96" height="32" fill="#fff"/><rect x="16" y="8" width="88" height="24" fill="#c46a1c"/><rect x="16" y="24" width="88" height="8" fill="#ffd400"/>'+
+    '<rect x="16" y="32" width="88" height="24" fill="#2a0e00"/>'+
+    '<g fill="#ffe600"><rect x="24" y="40" width="16" height="16"/><rect x="48" y="32" width="24" height="24"/><rect x="80" y="40" width="16" height="16"/></g>'+
+    '<rect class="sparkle" x="52" y="36" width="8" height="8" fill="#fff"/><rect class="sparkle b" x="28" y="44" width="4" height="4" fill="#fff"/><rect class="sparkle c" x="84" y="44" width="4" height="4" fill="#fff"/>'+
+    '<g fill="#fff"><rect class="sparkle b" x="20" y="12" width="4" height="4"/><rect class="sparkle c" x="96" y="16" width="4" height="4"/></g></g>'+
+  '<rect x="12" y="52" width="96" height="52" fill="#fff"/><rect x="16" y="56" width="88" height="44" fill="#9c4a12"/><rect x="16" y="56" width="88" height="8" fill="#ffd400"/>'+
+  '<rect x="24" y="64" width="8" height="36" fill="#6e2f08"/><rect x="88" y="64" width="8" height="36" fill="#6e2f08"/>'+
+  '<g class="is-closed"><rect x="12" y="28" width="96" height="32" fill="#fff"/><rect x="16" y="32" width="88" height="24" fill="#c46a1c"/>'+
+    '<rect x="24" y="32" width="8" height="24" fill="#ffd400"/><rect x="88" y="32" width="8" height="24" fill="#ffd400"/></g>'+
+  '<rect x="48" y="52" width="24" height="20" fill="#000"/><rect x="52" y="56" width="16" height="12" fill="#ffe600"/><rect x="58" y="60" width="4" height="6" fill="#000"/>'+
+  '</svg>';
+// Undersea: a barnacled sea-green chest full of pearls, with a starfish on the front.
+const SO='stroke="#06303b" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"';
+const CHEST_SEA='<svg viewBox="0 0 120 112" aria-hidden="true">'+
+  '<ellipse cx="60" cy="104" rx="46" ry="6" fill="rgba(0,0,0,.4)"/>'+
+  '<g class="is-open">'+
+    '<path d="M20 52 Q18 10 60 10 Q102 10 100 52 Z" fill="#2a7f74" '+SO+'/>'+
+    '<path d="M30 50 Q30 22 60 22 Q90 22 90 50 Z" fill="#0d3b3a"/>'+
+    '<g stroke="#8fb3c7" stroke-width="2.5" fill="#fff6fb"><circle cx="42" cy="50" r="9"/><circle cx="78" cy="50" r="9"/><circle cx="60" cy="44" r="10"/><circle cx="52" cy="56" r="8"/><circle cx="69" cy="56" r="8"/></g>'+
+    '<g fill="#fff" opacity=".9"><circle cx="57" cy="41" r="2.5"/><circle cx="40" cy="47" r="2"/><circle cx="76" cy="47" r="2"/></g>'+
+    '<g class="sparkle" fill="none" stroke="#e8fbff" stroke-width="2.5"><circle cx="28" cy="24" r="5"/><circle cx="96" cy="30" r="3.5"/></g>'+
+    '<g class="sparkle b" fill="none" stroke="#e8fbff" stroke-width="2.5"><circle cx="90" cy="12" r="5"/><circle cx="36" cy="8" r="3"/></g>'+
+  '</g>'+
+  '<rect x="14" y="56" width="92" height="44" rx="13" fill="#3aa99a" '+SO+'/>'+
+  '<g class="is-closed"><path d="M14 62 Q12 24 60 24 Q108 24 106 62 Z" fill="#57c2b3" '+SO+'/>'+
+    '<path d="M32 30 V60 M88 30 V60" fill="none" stroke="#f0c75e" stroke-width="7"/></g>'+
+  '<rect x="14" y="57" width="92" height="9" fill="#f0c75e" stroke="#06303b" stroke-width="3"/>'+
+  '<rect x="51" y="55" width="18" height="16" rx="5" fill="#ffe9a8" stroke="#06303b" stroke-width="3"/><circle cx="60" cy="63" r="2.4" fill="#06303b"/>'+
+  '<path d="M34 72 l3.2 6.6 7.2 .9 -5.3 5 1.4 7.1 -6.5 -3.6 -6.5 3.6 1.4 -7.1 -5.3 -5 7.2 -.9z" fill="#ff8f5a" stroke="#06303b" stroke-width="2.5" stroke-linejoin="round"/>'+
+  '<g fill="#2a7f74"><circle cx="84" cy="80" r="3"/><circle cx="92" cy="90" r="2.4"/><circle cx="78" cy="92" r="2"/></g>'+
+  '</svg>';
+const CHESTS={cuddly:CHEST, dungeon:CHEST_DUNGEON, space:CHEST_SPACE, arcade:CHEST_ARCADE, sea:CHEST_SEA};
+const PADLOCK='<svg viewBox="0 0 44 54" aria-hidden="true"><path d="M12 24 V16 a10 10 0 0 1 20 0 V24" fill="none" stroke="#3d2a1e" stroke-width="9" stroke-linecap="round"/>'+
+  '<path d="M12 24 V16 a10 10 0 0 1 20 0 V24" fill="none" stroke="#e8e2f2" stroke-width="4" stroke-linecap="round"/>'+
+  '<rect class="plk" x="5" y="22" width="34" height="28" rx="9" fill="#ffc93c" stroke="#3d2a1e" stroke-width="4"/><circle cx="22" cy="33" r="3.6" fill="#3d2a1e"/><rect x="20.3" y="33" width="3.4" height="9" rx="1.7" fill="#3d2a1e"/></svg>';
+const DOOR_COLORS=["#ff8a80","#4fc3c8","#b39ddb","#ffd166","#81c784","#64b5f6","#f48fb1","#ffab66","#a5d6a7","#90caf9","#ce93d8","#e6ee9c"];
+
+function buildDoors(){
+  const wrap=$("doors"); wrap.innerHTML="";
+  game.doors.forEach((d,i)=>{
+    const b=document.createElement("button"); b.type="button"; b.className="door"; b.dataset.i=i;
+    b.innerHTML='<span class="frame"><span class="room"><span class="chest">'+CHESTS[currentTheme]+'</span><span class="panel"></span><span class="padlock">'+PADLOCK+'</span></span></span>'+
+                '<span class="name">Door '+(i+1)+'</span><span class="avg" hidden></span><span class="status"></span>';
+    b.style.setProperty("--doorc",DOOR_COLORS[i % DOOR_COLORS.length]);
+    b.addEventListener("click",()=>onDoor(i));
+    wrap.appendChild(b);
+  });
+}
+function signed(x){ return x<0 ? "\u2212"+Math.abs(x) : "+"+x; }
+function clock(sec){ sec=Math.floor(sec); return Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0"); }
+function countdown(s){   // how long until this door starts closing (if open) or locks (if closing)
+  if(cfg.ticksPerSecond>0){ const sec=Math.ceil(s.left/cfg.ticksPerSecond); return sec>999 ? null : sec+"s"; }
+  if(cfg.clickTicks>0){ const k = s.state==="open" ? Math.floor(s.left/cfg.clickTicks)+1 : Math.ceil(s.left/cfg.clickTicks); return k>999 ? null : k+" click"+(k===1?"":"s"); }
+  return null;
+}
+function lockMsg(list){
+  const ns=list.map(j=>j+1);
+  return ns.length===1 ? "Door "+ns[0]+" just locked." : "Doors "+ns.slice(0,-1).join(", ")+" and "+ns[ns.length-1]+" just locked.";
+}
+function render(){
+  $("hud-clicks").textContent=game.clicksLeft; $("hud-score").textContent=game.score;
+  const limited=cfg.timeLimit>0, noClicks=cfg.totalClicks>=99999, left=limited ? Math.max(0,cfg.timeLimit-timeUsed(game)) : 0;
+  $("stat-clicks").hidden=noClicks;
+  $("hud-bar").style.width=(noClicks && limited ? 100*left/cfg.timeLimit : 100*game.clicksLeft/cfg.totalClicks)+"%";
+  $("stat-time").hidden=!(limited || cfg.ticksPerSecond>0);
+  $("hud-time-k").textContent = limited ? "Time left" : "Time";
+  $("hud-time").textContent = limited ? clock(Math.ceil(left)) : clock(game.elapsed);
+  $("stat-time").classList.toggle("low", limited && left<=10);
+  [...$("doors").children].forEach((b,i)=>{
+    const s=doorState(game.doors[i],cfg);
+    b.classList.remove("open","closing","locked"); b.classList.add(s.state);
+    let closed=0;
+    if(s.state==="locked") closed=1;
+    else if(s.state==="closing") closed=Math.min(0.93,Math.max(cfg.minAjar, s.step/cfg.m));
+    b.style.setProperty("--closed",closed);
+    b.setAttribute("aria-disabled", s.state==="locked" ? "true":"false");
+    const cd = cfg.showCountdown ? countdown(s) : null;
+    let txt="", aria="Door "+(i+1)+": ";
+    if(s.state==="open"){ txt = cd ? "Open · starts closing in "+cd : "Open"; aria+= cfg.showHints ? "open. Click to open the chest." : "open."; }
+    else if(s.state==="closing"){ txt="Closing — click to reopen"+(cd ? " · locks in "+cd : ""); aria+= cfg.showHints ? "closing. Click to reopen it; this uses a click and earns no points." : "closing."; }
+    else { txt="Locked"; aria+="locked."; }
+    if(!cfg.showHints && !cfg.showCountdown) txt="";            // no captions: players work out what the doors are doing
+    // The player's own running average for this door, in a pill colored on a fixed scale: red at the lowest true average
+    // any door in this round can have, green at the highest. (So the color does say where a door sits in the full range.)
+    const av=b.querySelector(".avg"), dd=game.doors[i];
+    av.hidden=!cfg.showAverages;
+    if(cfg.showAverages){
+      const ends=cfg.doors.map(sp=>sp.type==="quality" ? [sp.min,sp.max] : [trueMean(sp),trueMean(sp)]), lo=Math.min(...ends.map(e=>e[0])), hi=Math.max(...ends.map(e=>e[1]));
+      if(dd.chestClicks){
+        const a=dd.points/dd.chestClicks, t=hi>lo ? Math.min(1,Math.max(0,(a-lo)/(hi-lo))) : 0.5;
+        av.textContent="avg "+fmt(a); aria+=" Average "+fmt(a)+".";
+        av.style.background="hsl("+Math.round(120*t)+",72%,62%)";    // 0 = red, 60 = yellow, 120 = green
+      }
+      else{ av.textContent="avg –"; av.style.background=""; }
+    }
+    b.querySelector(".status").textContent=txt; b.setAttribute("aria-label",aria);
+  });
+}
+// What's on screen right now, as a string: the real-time loop re-renders only when this changes.
+function screenSig(){
+  return clock(cfg.timeLimit>0 ? Math.ceil(Math.max(0,cfg.timeLimit-timeUsed(game))) : game.elapsed)+"|"+game.doors.map(d=>{ const s=doorState(d,cfg); return s.state+s.step+(cfg.showCountdown?countdown(s):""); }).join("|");
+}
+let ticker=null, lastNow=0, lastSig="";
+function tick(){
+  if(!game || game.over) return;
+  const now=performance.now(), dt=Math.max(0,(now-lastNow)/1000); lastNow=now;
+  const newly=advanceTime(game,dt);
+  if(newly.length){ sfx("lock"); $("msg").textContent=lockMsg(newly); pushResult(false); }
+  // One door left: nothing more to decide, so the game clicks it for the player. These clicks are drawn and logged
+  // like any others, marked "(auto)" in the click log.
+  if(cfg.autoClickSeconds>0 && cfg.numDoors>1 && !game.over){
+    const alive=game.doors.map((d,i)=>doorState(d,cfg).state!=="locked" ? i : -1).filter(i=>i>=0);
+    if(alive.length!==1) game.autoAt=null;
+    else if(game.autoAt==null) game.autoAt=now+cfg.autoClickSeconds*1000;
+    else if(now>=game.autoAt){
+      game.autoAt=Math.max(game.autoAt+cfg.autoClickSeconds*1000, now-cfg.autoClickSeconds*1000);   // keep to the pace rather than drifting with the tick
+      const before=game.log.length; onDoor(alive[0]);
+      if(game.log.length>before) game.log[game.log.length-1].action+=" (auto)";
+      if(game.over) return;
+    }
+  }
+  const sg=screenSig();
+  if(sg!==lastSig || game.over){ lastSig=sg; render(); }
+  if(game.over) endSoon();
+}
+function endSoon(){
+  if(game.ending) return; game.ending=true;
+  if(ticker){ clearInterval(ticker); ticker=null; }
+  setTimeout(showEnd, game.endReason==="locked" ? 2100 : 650);
+}
+function onDoor(i){
+  if(!game || game.over) return;
+  const b=$("doors").children[i], r=clickDoor(game,i);
+  if(r.type==="blocked"){ const f=b.querySelector(".frame"); f.classList.remove("shake"); void f.offsetWidth; f.classList.add("shake"); sfx("blocked"); $("msg").textContent="Door "+(i+1)+" is locked."; return; }
+  if(r.type==="chest"){
+    const room=b.querySelector(".room"), p=document.createElement("span"); p.className="pop"; p.textContent=signed(r.points); room.appendChild(p); setTimeout(()=>p.remove(),800);
+    const c=b.querySelector(".chest"); c.classList.remove("hit"); void c.offsetWidth; c.classList.add("hit");
+    if(r.points<0){ p.classList.add("neg"); sfx("bad"); } else sfx("coin");
+  } else sfx("reopen");
+  if(r.newlyLocked.length) setTimeout(()=>sfx("lock"), r.type==="chest" ? (r.points<0 ? 700 : 120) : 420);
+  let m = r.type==="chest" ? signed(r.points)+" from Door "+(i+1)+"." : "Reopened Door "+(i+1)+". No points for that click.";
+  if(r.newlyLocked.length) m+=" "+lockMsg(r.newlyLocked);
+  $("msg").textContent=m;
+  lastSig=screenSig(); render();
+  pushResult(false);
+  if(game.over) endSoon();
+}
+let currentScreen="";
+function show(id){ ["join","wait","setup","game","end","teacher"].forEach(s=>$(s).classList.toggle("on",s===id)); if(id!==currentScreen){ currentScreen=id; window.scrollTo(0,0); } }
+function startGame(){
+  if(ticker) clearInterval(ticker);
+  document.body.classList.remove("mockup");
+  document.body.classList.toggle("nohints", !cfg.showHints);
+  applyTheme(cfg.theme);
+  game=newGame(cfg); buildDoors(); render(); lastSig=screenSig();
+  $("msg").textContent="Click a chest to begin."+(cfg.ticksPerSecond>0 ? " The timer starts with your first click." : "");
+  show("game");
+  lastNow=performance.now(); ticker=setInterval(tick,50);
+}
+// A frozen, non-playable screen for showing students what the game looks like mid-play:
+// many doors, each in a different state. Open it with ?mockup=8 (the number is how many doors).
+function showMockup(k){
+  if(ticker){ clearInterval(ticker); ticker=null; }
+  cfg=Object.assign({}, cfg||readForm(), {numDoors:Math.min(12,Math.max(1,k||8)), n:6, m:6, stagger:0, clickTicks:1, ticksPerSecond:0, showCountdown:false, totalClicks:100});
+  applyTheme(cfg.theme);
+  game=newGame(cfg);
+  // how far closed each door is, as a share of m (0 = wide open, 1 = locked)
+  const pattern=[0, .17, 0, .5, 1, 0, .83, .34, 1, 0, .67, 0];
+  game.doors.forEach((d,i)=>{ const p=pattern[i % pattern.length]; d.idle = p===0 ? (i%4) : cfg.n+Math.max(1,Math.round(p*cfg.m)); if(p===1) d.lockedAt=30; });
+  game.clicksLeft=58; game.t=42; game.score=247; game.started=true; game.elapsed=71;
+  game.over=true; game.ending=true;                       // frozen: clicks and the clock do nothing
+  document.body.classList.add("mockup"); document.body.classList.toggle("nohints", !cfg.showHints);
+  buildDoors(); render();
+  const room=$("doors").children[0].querySelector(".room"), p=document.createElement("span");
+  p.className="pop still"; p.textContent="+9"; room.appendChild(p);
+  $("msg").textContent="+9 from Door 1.";
+  show("game");
+}
+function fmt(x){ return (Math.round(x*10)/10).toLocaleString(undefined,{maximumFractionDigits:1}); }
+function showEnd(){
+  if(!game) return;
+  if(classEnd()) return;                                   // in a class session the end screen is drawn from the saved result
+  setEndButtons(false); $("end-class").hidden=true;
+  const means=game.doors.map(d=>trueMean(d.spec)), best=Math.max(...means);
+  const locked=game.doors.filter(d=>d.lockedAt!==null).length;
+  $("end-score").textContent=game.score.toLocaleString();
+  $("end-summary").textContent="You used "+game.t+" click"+(game.t===1?"":"s")+" in "+clock(game.elapsed)+": "+(game.t-game.reopens)+" on chests and "+game.reopens+" reopening doors. "+
+      (game.endReason==="locked" ? "Every door locked with "+game.clicksLeft+" click"+(game.clicksLeft===1?"":"s")+" unused." :
+       (game.endReason==="time" && cfg.totalClicks<99999 ? "Time ran out with "+game.clicksLeft+" click"+(game.clicksLeft===1?"":"s")+" unused. " : game.endReason==="time" ? "Time ran out. " : "")+locked+" of "+cfg.numDoors+" doors locked.");
+  let h="<tr><th>Door</th><th>Chest clicks</th><th>Reopen clicks</th><th>Your points</th><th>Your average</th><th>True average</th><th>At the end</th></tr>";
+  game.doors.forEach((d,i)=>{
+    h+='<tr class="'+(means[i]===best?"best":"")+'"><td>Door '+(i+1)+(means[i]===best?" (best)":"")+"</td><td>"+d.chestClicks+"</td><td>"+d.reopens+"</td><td>"+d.points.toLocaleString()+
+       "</td><td>"+(d.chestClicks?fmt(d.points/d.chestClicks):"–")+"</td><td>"+fmt(means[i])+"</td><td>"+(d.lockedAt!==null?(cfg.ticksPerSecond>0?"Locked at "+clock(d.lockedSec):"Locked at click "+d.lockedAt):doorState(d,cfg).state==="closing"?"Closing":"Open")+"</td></tr>";
+  });
+  $("end-table").innerHTML=h;
+  $("end-bench").textContent="Spending all "+cfg.totalClicks+" clicks on the best door would have earned about "+fmt(best*cfg.totalClicks)+" points on average.";
+  show("end"); sfx("fanfare");
+}
+function downloadCSV(){
+  const k=cfg.numDoors, head=["click","seconds","door","action","points","score"].concat([...Array(k).keys()].map(i=>"door"+(i+1)+"_state"));
+  const rows=[head.join(",")].concat(game.log.map(e=>[e.t,e.sec.toFixed(2),e.door,e.action,e.points,e.score].concat(e.states).join(",")));
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"})); a.download="closing-time-clicks.csv";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ======================= wiring ======================= */
+$("btn-start").addEventListener("click",()=>{
+  try{ cfg=readForm(); }catch(e){ $("setup-error").textContent=e.message; return; }
+  $("setup-error").textContent="";
+  try{ localStorage.setItem("doorsGameSettings5",JSON.stringify(cfg)); }catch(e){}
+  startGame();
+});
+$("btn-defaults").addEventListener("click",()=>{ try{ localStorage.removeItem("doorsGameSettings5"); localStorage.removeItem("doorsGameSkin"); }catch(e){} fillForm(JSON.parse(JSON.stringify(DEFAULTS))); $("setup-error").textContent=""; });
+$("btn-again").addEventListener("click",startGame);
+$("btn-settings").addEventListener("click",()=>{ fillForm(cfg); show("setup"); });
+$("btn-csv").addEventListener("click",downloadCSV);
+$("btn-sound").addEventListener("click",()=>{ setSound(!soundOn); if(soundOn) sfx("coin"); });
+$("s-theme").addEventListener("change",()=>applyTheme($("s-theme").value,true));
+setSound(soundOn);
+["s-doors","s-clicks","s-n","s-m","s-clickticks","s-rate"].forEach(id=>$(id).addEventListener("input",()=>{ try{ showRules(readForm()); }catch(e){} }));
+buildSkinControls();
+$("btn-mockup").addEventListener("click",()=>{ try{ cfg=readForm(); }catch(e){ $("setup-error").textContent=e.message; return; } showMockup(8); });
+$("s-hints").addEventListener("change",()=>{ try{ showRules(readForm()); }catch(e){} });
+fillForm(loadSaved());
+
+/* ======================================================================
+   CLASS SESSIONS — the same pattern as the Rothschild-Stiglitz page:
+   one index.html on GitHub Pages, shared state in a Firebase Realtime
+   Database, a session code, and a teacher view behind a password.
+
+   That database's rules only allow reads and writes under sessions/<x>,
+   so each doors session lives at sessions/doorsgame-<code>. A
+   Rothschild-Stiglitz session can't collide with it unless someone types
+   a code starting with "doorsgame-". To move the data (say, to doors/<code>
+   after adding a rule for it), change sessionPath below.
+
+     meta      {round, status: "lobby" | "open" | "closed", reveal}
+     config    {base: settings, groups: [{name, share, ...overrides}]}
+     players   {<name key>: {name, uid, g: group number, joined}}
+     rounds    {r<round>: {<name key>: one player's result, updated as they play}}
+     logs      {r<round>: {<name key>: every click, as CSV text}}
+   ====================================================================== */
+const FB_CONFIG={
+  apiKey:"AIzaSyCFwQpFM4HBmtTv_njRCuqmGh9m4-UPqrc",
+  authDomain:"rothschild-stiglitz-simulation.firebaseapp.com",
+  databaseURL:"https://rothschild-stiglitz-simulation-default-rtdb.firebaseio.com",
+  projectId:"rothschild-stiglitz-simulation",
+  storageBucket:"rothschild-stiglitz-simulation.firebasestorage.app",
+  messagingSenderId:"327006345433",
+  appId:"1:327006345433:web:d503ec7154bc8953b3c6c8"
+};
+const sessionPath=code=>"sessions/doorsgame-"+code;
+const TEACHER_PASSWORD="econ";
+const GROUP_PRESETS={
+  one:[{name:"Everyone",share:1}],
+  never:[{name:"Doors close",share:1},{name:"Doors never close",share:1,n:99999}],
+  // The learning rounds: the same three doors for everyone (true averages 6, 8, 10), reshuffled every time, 30 seconds each.
+  r1:[{name:"Everyone", share:1, timeLimit:30, totalClicks:30, showAverages:false, numDoors:3, sampleDoors:false, shuffleDoors:true, doors:[6,8,10].map(mean=>({type:"normal",mean,sd:5}))}],
+  // 6 vs 12 doors: each player's doors are a random draw from these twelve true averages. Twelve doors always include the 15;
+  // six doors include it half the time, and the best door a 6-door player is dealt averages about 13.1,
+  // so having twelve doors is worth about 14% more. Every door's true average is between 5 and 15.
+  few:[6,12].map(k=>({name:k+" doors", share:1, timeLimit:60, totalClicks:60, showAverages:false, numDoors:k, sampleDoors:true, shuffleDoors:true, doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
+  // Averages round: everyone gets nine doors, a random draw from the same twelve true averages as the 6-vs-12 round
+  // (so a player holds the 15 three times in four). Half the class sees a running average of their own payouts under
+  // each door, colored on the full 5-to-15 scale; the other half has to keep track in their heads.
+  avg:[false,true].map(on=>({name:on?"Averages shown":"Averages hidden", share:1, timeLimit:60, totalClicks:60, showAverages:on, numDoors:9, sampleDoors:true, shuffleDoors:true,
+                            doors:[5,5,6,6,7,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))})),
+  // The round that counts: everyone gets the same nine doors (nine of the twelve true averages used in the earlier rounds,
+  // in a shuffled order), so nobody's score depends on the deal. No averages are shown.
+  money:[{name:"Money round", share:1, timeLimit:60, totalClicks:60, showAverages:false, numDoors:9, sampleDoors:false, shuffleDoors:true,
+          doors:[5,6,7,8,9,10,11,12,15].map(mean=>({type:"normal",mean,sd:5}))}],
+  shin:[{name:"Doors vanish",share:1,n:0,m:12,stagger:0},{name:"Doors never vanish",share:1,n:0,m:99999,stagger:0}]
+};
+
+let db=null, sref=null, offs=[], roundOff=null, roundKey=null;
+const S={};
+function resetS(){
+  Object.keys(S).forEach(k=>delete S[k]);
+  Object.assign(S,{role:null, code:"", pid:"", name:"", meta:null, config:null, me:null, players:{}, results:{}, summary:null,
+                   playRound:null, checkedRound:null, checking:null, restarts:0, formLoaded:false});
+}
+resetS();
+let UID="";
+try{ UID=localStorage.getItem("doorsGameUid")||""; if(!UID){ UID=Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem("doorsGameUid",UID); } }
+catch(e){ UID=Math.random().toString(36).slice(2)+Date.now().toString(36); }
+
+/* ---------- small helpers ---------- */
+const TS=()=>firebase.database.ServerValue.TIMESTAMP;
+const arr=x=>Array.isArray(x) ? x : (x && typeof x==="object" ? Object.values(x) : []);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const cleanCode=s=>String(s||"").trim().toLowerCase().replace(/[^a-z0-9-]/g,"").slice(0,20);          // lowercase, safe as a Firebase key
+const cleanName=s=>String(s||"").replace(/[\u0000-\u001f.#$\[\]\/]/g," ").replace(/\s+/g," ").trim().slice(0,24);
+function nameKey(s){                                                                                   // the name as a Firebase key
+  const n=cleanName(s).toLowerCase(), k=n.replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
+  return k || "u"+[...n].map(c=>c.codePointAt(0).toString(36)).join("-");
+}
+function fbInit(){
+  if(db) return true;
+  if(!window.firebase) return false;
+  try{ firebase.app(); }catch(e){ firebase.initializeApp(FB_CONFIG); }
+  db=firebase.database();
+  db.ref(".info/serverTimeOffset").on("value",s=>{ serverOffset=s.val()||0; });
+  return true;
+}
+const serverNow=()=>Date.now()+serverOffset;              // the same moment on every computer, whatever its own clock says
+function once(ref){
+  return Promise.race([ref.once("value"), new Promise((_,rej)=>setTimeout(()=>rej(new Error("The game server didn't answer. Check your connection and try again.")),10000))]);
+}
+function listen(ref,fn){ const cb=ref.on("value",s=>fn(s.val()),()=>{}); const off=()=>ref.off("value",cb); offs.push(off); return off; }
+function stopAll(){ offs.forEach(f=>{ try{ f(); }catch(e){} }); offs=[]; roundOff=null; roundKey=null; sref=null; if(typeof viewOff!=="undefined") viewOff=null; const rs=document.getElementById("r-round"); if(rs){ rs.innerHTML=""; rs.dataset.sig=""; } }
+function remember(){ try{ sessionStorage.setItem("doorsGameSession",JSON.stringify({role:S.role,code:S.code,name:S.name})); if(S.name) localStorage.setItem("doorsGameName",S.name); }catch(e){} }
+function forget(){ try{ sessionStorage.removeItem("doorsGameSession"); }catch(e){} }
+
+/* ---------- settings and groups ---------- */
+function validateCfg(c){
+  const int=(k,min)=>{ if(!Number.isInteger(c[k])||c[k]<min) throw new Error(k+" must be a whole number of at least "+min+"."); };
+  const num=k=>{ if(typeof c[k]!=="number"||!isFinite(c[k])||c[k]<0) throw new Error(k+" must be a number of at least 0."); };
+  int("numDoors",1); if(c.numDoors>12) throw new Error("Use 12 doors or fewer."); int("totalClicks",1);
+  ["n","m","stagger","clickTicks","ticksPerSecond","timeLimit","autoClickSeconds"].forEach(num);
+  if(!Array.isArray(c.doors)||!c.doors.length) throw new Error("doors must be a list with at least one distribution.");
+  c.doors.forEach(validateSpec);
+}
+function normConfig(v){                      // what Firebase sends back, made safe to use
+  v=v||{};
+  const base=Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), v.base||{}); base.doors=arr(base.doors);
+  let groups=arr(v.groups).map(g=>{ g=Object.assign({},g); if(g.doors) g.doors=arr(g.doors); return g; });
+  if(!groups.length) groups=GROUP_PRESETS.one;
+  return {base,groups};
+}
+function groupOf(config,g){ return config.groups[Math.min(Math.max(0,g|0),config.groups.length-1)]; }
+function groupCfg(config,g){                 // one group's settings: the base settings plus that group's overrides
+  const grp=groupOf(config,g), c=Object.assign({},config.base);
+  Object.keys(grp).forEach(k=>{ if(k!=="name"&&k!=="share") c[k]=grp[k]; });
+  return c;
+}
+function groupName(config,g){ return groupOf(config,g).name || "Group "+((g|0)+1); }
+function parseGroups(text,base){
+  let g; try{ g=JSON.parse(text); }catch(e){ throw new Error("The groups list isn't valid JSON: "+e.message); }
+  if(!Array.isArray(g)||!g.length) throw new Error("The groups list needs at least one group.");
+  g.forEach((grp,i)=>{
+    if(!grp||typeof grp!=="object"||Array.isArray(grp)) throw new Error('Each group must look like {"name":"...","share":1}.');
+    if(typeof grp.name!=="string"||!grp.name.trim()) throw new Error("Group "+(i+1)+" needs a name.");
+    if(grp.share===undefined) grp.share=1;
+    if(typeof grp.share!=="number"||!(grp.share>0)) throw new Error('Group "'+grp.name+'" needs a share above 0.');
+    Object.keys(grp).forEach(k=>{ if(k!=="name"&&k!=="share"&&(!(k in DEFAULTS)||k==="theme")) throw new Error('Group "'+grp.name+'" has an unknown setting "'+k+'".'); });
+    try{ validateCfg(groupCfg({base,groups:g},i)); }catch(e){ throw new Error('Group "'+grp.name+'": '+e.message); }
+  });
+  return g;
+}
+// Put a new player in whichever group is furthest below its share (ties broken at random).
+function pickGroup(config,players){
+  const groups=normConfig(config).groups, count=groups.map(()=>0);
+  Object.values(players||{}).forEach(p=>{ if(p && p.g>=0 && p.g<count.length) count[p.g]++; });
+  let best=[], low=Infinity;
+  groups.forEach((g,i)=>{ const r=count[i]/(g.share>0?g.share:1); if(r<low-1e-9){ low=r; best=[i]; } else if(Math.abs(r-low)<1e-9) best.push(i); });
+  return best[Math.floor(Math.random()*best.length)];
+}
+
+/* ======================= student side ======================= */
+async function joinStudent(rawName,rawCode){
+  const name=cleanName(rawName), code=cleanCode(rawCode);
+  if(!name) throw new Error("Type your name.");
+  if(!code) throw new Error("Type the session code.");
+  if(!fbInit()) throw new Error("Couldn't reach the game server. Check your connection and reload the page.");
+  const ref=db.ref(sessionPath(code));
+  if(!(await once(ref.child("meta"))).val()) throw new Error("There's no session with that code. Check it and try again.");
+  const pid=nameKey(name), pref=ref.child("players/"+pid), cur=(await once(pref)).val();
+  if(cur && cur.uid && cur.uid!==UID) throw new Error("Someone in this session already has that name. Add a last initial.");
+  if(!cur){
+    const [c,p]=await Promise.all([once(ref.child("config")), once(ref.child("players"))]);
+    await pref.set({name, uid:UID, g:pickGroup(c.val(), p.val()||{}), joined:TS()});
+  }
+  stopAll(); resetS(); game=null;
+  Object.assign(S,{role:"student", code, pid, name}); sref=ref; remember();
+  listen(sref.child("meta"), v=>{ S.meta=v; syncReveal(); route(); });
+  listen(sref.child("config"), v=>{ S.config=normConfig(v); route(); });
+  listen(pref, v=>{ if(!v){ if(S.role==="student") leaveLocal("You're no longer in that session. Join again to play."); return; } S.me=v; route(); });
+}
+// Decides what a student should be looking at. Called whenever anything about the session changes.
+function route(){
+  if(S.role!=="student"||!S.meta||!S.config||!S.me) return;
+  const r=S.meta.round, st=S.meta.status;
+  if(game && S.playRound!=null){                        // a game is on screen (or its end screen is a moment away)
+    if(!game.over && (S.playRound!==r || st!=="open")){ game.over=true; game.endReason="closed"; endSoon(); }   // the teacher ended the round
+    return;
+  }
+  if(S.checkedRound!==r){ checkRound(r); return; }       // first find out whether this player already played this round
+  if(S.summary && S.summary.round===r){ showClassEnd(); return; }
+  if(S.resume) startClassGame();
+  else if(st==="open"){
+    if(S.meta.started && S.meta.started-serverNow()>50){ if(!countTimer) countIn(); }   // the round opens in a moment: 3, 2, 1
+    else startClassGame();
+  }
+  else showWait();
+}
+let countTimer=null;
+function countIn(){
+  countTimer=null;
+  if(S.role!=="student"||!S.meta||S.meta.status!=="open"){ route(); return; }
+  const ms=S.meta.started-serverNow();
+  if(ms<=50){ route(); return; }
+  $("wait-msg").textContent=Math.ceil(ms/1000); $("wait-msg").classList.add("count"); $("wait-who").textContent=S.name+" · session "+S.code;
+  show("wait");
+  countTimer=setTimeout(countIn,Math.min(200,ms));
+}
+function checkRound(r){
+  if(S.checking===r) return; S.checking=r;
+  const ref=sref;
+  once(sref.child("rounds/r"+r+"/"+S.pid)).then(s=>{
+    if(S.role!=="student"||sref!==ref) return;
+    const v=s.val(); S.checking=null;
+    S.summary = v && v.state==="done" ? v : null;
+    S.resume = v && v.state==="playing" ? loadLocal(r) : null;         // reloaded mid-game: pick the same game back up
+    S.restarts = v && v.state==="playing" && !S.resume ? (v.restarts||0)+1 : (v && v.restarts)||0;   // nothing saved on this computer: a fresh game, counted as a restart
+    S.checkedRound=r; route();
+  }).catch(()=>{ S.checking=null; setTimeout(route,2000); });
+}
+function showWait(){
+  $("wait-msg").classList.remove("count");
+  $("wait-msg").textContent = S.meta.status==="closed" ? "Waiting for the next round…" : "Waiting for the game to start…";
+  $("wait-who").textContent = S.name+" · session "+S.code;
+  show("wait");
+}
+// A game in progress is also kept on the player's own computer after every click, so reloading the page (or
+// closing and reopening it) picks the same game back up: same doors, same clicks left, same score. Without
+// that, a reload would deal a fresh game, which matters when a round counts for something.
+const saveKey=r=>"doorsGameSave:"+S.code+":"+r+":"+S.pid;
+function saveLocal(){ try{ localStorage.setItem(saveKey(S.playRound), JSON.stringify({at:Date.now(), cfg, game})); }catch(e){} }
+function loadLocal(r){ try{ const v=JSON.parse(localStorage.getItem(saveKey(r))||"null"); return v && v.game && v.cfg ? v : null; }catch(e){ return null; } }
+function clearLocal(keep){ try{ Object.keys(localStorage).forEach(k=>{ if(k.indexOf("doorsGameSave:")===0 && k!==keep) localStorage.removeItem(k); }); }catch(e){} }
+function startClassGame(){
+  const saved=S.resume; S.resume=null;
+  cfg = saved ? saved.cfg : groupCfg(S.config,S.me.g);
+  try{ const k=localStorage.getItem("doorsGameSkin"); if(k && THEMES[k]) cfg.theme=k; }catch(e){}   // the player's own last look wins
+  S.playRound=S.meta.round;
+  clearLocal(saveKey(S.playRound));
+  startGame();
+  if(saved){                                               // the clock kept running while the page was away
+    game=saved.game; game.cfg=cfg; game.ending=false;
+    buildDoors(); if(game.clock===undefined) game.clock=0; advanceTime(game,Math.max(0,(Date.now()-saved.at)/1000)); render(); lastSig=screenSig();
+  }
+  else{ game.g=S.me.g|0; game.gname=groupName(S.config,S.me.g); }
+  if(S.meta.started){                                      // one clock for the whole round: a time limit runs from the shared start, not from when this player arrived
+    game.clock=Math.max(0,(serverNow()-S.meta.started)/1000);
+    if(!game.over) checkOver(game);
+    render(); lastSig=screenSig();
+  }
+  pushResult(true);
+  if(!game.over && S.meta.status!=="open"){ game.over=true; game.endReason="closed"; }   // the round ended while the page was away
+  if(game.over) endSoon();
+}
+// One player's result so far. Saved to Firebase as they play, and once more when they finish.
+function buildSummary(){
+  const best=Math.max(...game.doors.map(o=>o.mu));        // the best door this player was dealt
+  const d=game.doors.map(o=>({di:o.di, mu:o.mu, ck:o.chestClicks, ro:o.reopens, pt:o.points, lk:o.lockedAt===null?-1:o.lockedAt,
+                              ls:o.lockedSec===null?-1:Math.round(o.lockedSec*10)/10, st:doorState(o,cfg).state}));
+  return {name:S.name, g:game.g|0, gname:game.gname||"", state:game.over?"done":"playing", round:S.playRound,
+          score:game.score, t:game.t, left:game.clicksLeft, reopens:game.reopens, locked:d.filter(x=>x.lk>=0).length,
+          elapsed:Math.round(game.elapsed*10)/10, end:game.endReason||"", restarts:S.restarts||0,
+          nd:cfg.numDoors, tc:cfg.totalClicks, n:cfg.n, m:cfg.m, ct:cfg.clickTicks, tps:cfg.ticksPerSecond, sg:cfg.stagger, tl:cfg.timeLimit||0, sa:cfg.showAverages?1:0, rs:S.meta.set||1, rt:S.meta.try||S.meta.round,
+          bestck:d.reduce((a,x)=>a+(x.mu===best?x.ck:0),0), bm:best, d, u:TS()};
+}
+let pushTimer=null, lastPush=0;
+function pushResult(force){                 // at most one write every 1.5 seconds while playing
+  if(S.role!=="student"||!sref||S.playRound==null||!game) return null;
+  saveLocal();
+  const ref=sref.child("rounds/r"+S.playRound+"/"+S.pid);
+  const go=()=>{ pushTimer=null; lastPush=Date.now(); const sm=buildSummary(); ref.set(sm).catch(()=>{}); return sm; };
+  if(force){ if(pushTimer){ clearTimeout(pushTimer); pushTimer=null; } return go(); }
+  if(!pushTimer) pushTimer=setTimeout(go, Math.max(0,1500-(Date.now()-lastPush)));
+  return null;
+}
+function logText(){
+  return game.log.map(e=>[e.t, e.sec.toFixed(2), e.door, e.mu===undefined?"":e.mu, e.action, e.points, e.score, e.states.join("|")].join(",")).join("\n");
+}
+// Called by showEnd. In a class session: save the final result and the click log, then show the class end screen.
+function classEnd(){
+  if(S.role!=="student"||S.playRound==null||!sref) return false;
+  const sm=Object.assign({},pushResult(true),{u:Date.now()});
+  sref.child("logs/r"+S.playRound+"/"+S.pid).set(logText()).catch(()=>{});
+  S.summary=sm; S.playRound=null; clearLocal();
+  sfx("fanfare"); route();
+  return true;
+}
+function setEndButtons(inClass){
+  $("btn-again").hidden=inClass; $("btn-settings").hidden=inClass; $("btn-csv").hidden=inClass; $("btn-leave2").hidden=!inClass;
+}
+function showClassEnd(){
+  const sm=S.summary, reveal=!!S.meta.reveal, d=arr(sm.d);
+  const best=Math.max(...d.map(x=>x.mu));
+  $("end-score").textContent=Number(sm.score).toLocaleString();
+  $("end-summary").textContent="You used "+sm.t+" click"+(sm.t===1?"":"s")+": "+(sm.t-sm.reopens)+" on chests and "+sm.reopens+" reopening doors. "+
+    (sm.end==="closed" ? "The round ended before you finished. " : sm.end==="time" ? (sm.tc<99999 ? "Time ran out with "+sm.left+" click"+(sm.left===1?"":"s")+" unused. " : "Time ran out. ") : sm.end==="locked" ? "Every door locked with "+sm.left+" click"+(sm.left===1?"":"s")+" unused. " : "")+
+    sm.locked+" of "+sm.nd+" doors locked.";
+  let h="<tr><th>Door</th><th>Chest clicks</th><th>Reopen clicks</th><th>Your points</th><th>Your average</th>"+(reveal?"<th>True average</th>":"")+"<th>At the end</th></tr>";
+  d.forEach((x,i)=>{
+    const mu=x.mu, isBest=reveal && mu===best;
+    h+='<tr class="'+(isBest?"best":"")+'"><td>Door '+(i+1)+(isBest?" (best)":"")+"</td><td>"+x.ck+"</td><td>"+x.ro+"</td><td>"+Number(x.pt).toLocaleString()+"</td><td>"+(x.ck?fmt(x.pt/x.ck):"–")+"</td>"+
+       (reveal?"<td>"+(mu===undefined?"–":fmt(mu))+"</td>":"")+"<td>"+(x.lk>=0 ? (sm.tps>0 ? "Locked at "+clock(x.ls) : "Locked at click "+x.lk) : x.st==="closing" ? "Closing" : "Open")+"</td></tr>";
+  });
+  $("end-table").innerHTML=h;
+  $("end-bench").textContent = reveal ? "Spending all "+sm.tc+" clicks on the best door would have earned about "+fmt(best*sm.tc)+" points on average." : "";
+  const box=$("end-class"); box.hidden=!reveal;
+  if(reveal){
+    const st=groupStats(S.results), n=st.rows.length;
+    if(!n) box.innerHTML="<h2>The class</h2><p class=\"hint\">Loading the class results…</p>";
+    else{
+      const rank=1+st.rows.filter(r=>r.score>sm.score).length, avg=st.rows.reduce((a,r)=>a+r.score,0)/n;
+      box.innerHTML="<h2>The class</h2><p style=\"margin:0 0 10px\">You placed <strong>"+rank+" of "+n+"</strong>. The class average was <strong>"+fmt(avg)+"</strong> points.</p>"+
+        '<div class="tablewrap"><table>'+groupTableHTML(st,sm.g|0)+"</table></div>";
+    }
+  }
+  setEndButtons(true);
+  show("end");
+}
+// Students only download the whole round's results once the teacher reveals them.
+function syncReveal(){
+  if(S.role!=="student"||!sref) return;
+  const want = S.meta && S.meta.reveal ? S.meta.round : null;
+  if(want===roundKey) return;
+  if(roundOff) roundOff(); roundOff=null; roundKey=want; S.results={};
+  if(want!=null) roundOff=listen(sref.child("rounds/r"+want), v=>{ S.results=v||{}; if(currentScreen==="end" && S.summary) showClassEnd(); });
+}
+function leaveLocal(msg){
+  stopAll(); forget();
+  if(ticker){ clearInterval(ticker); ticker=null; }
+  if(pushTimer){ clearTimeout(pushTimer); pushTimer=null; }
+  if(countTimer){ clearTimeout(countTimer); countTimer=null; }
+  game=null; resetS();
+  document.body.classList.remove("nohints","mockup");
+  showJoin(msg);
+}
+function leaveSession(){                    // "Leave session": take this student's node out of the session
+  const ref=sref, pid=S.pid, r=S.meta&&S.meta.round, finished=!!(S.summary && S.summary.round===r);
+  clearLocal(); leaveLocal("");
+  if(ref && pid){ ref.child("players/"+pid).remove().catch(()=>{}); if(!finished && r!=null) ref.child("rounds/r"+r+"/"+pid).remove().catch(()=>{}); }
+}
+window.addEventListener("pagehide",()=>{ if(game && !game.over) pushResult(true); });
+
+/* ======================= results (used by the teacher view and by students after the reveal) ======================= */
+function groupStats(results){               // finished games only
+  const rows=Object.values(results||{}).filter(r=>r && r.state==="done"), by={};
+  rows.forEach(r=>{
+    const k=r.g|0, b=by[k]||(by[k]={g:k, name:r.gname||"Group "+(k+1), n:0, score:0, reopens:0, locked:0, chest:0, best:0, bench:0, bm:0});
+    b.n++; b.score+=r.score; b.reopens+=r.reopens; b.locked+=r.locked; b.chest+=r.t-r.reopens; b.best+=r.bestck||0; b.bench+=(r.bm||0)*r.tc; b.bm+=r.bm||0;
+  });
+  return {rows, groups:Object.values(by).sort((a,b)=>a.g-b.g)};
+}
+// One row per group, with the columns in the order (and with the names) of the fill-in tables on the slides.
+function groupTableHTML(st,mine){
+  let h="<tr><th>Group</th><th>Games played</th><th>Average score</th><th>Clicks on best door</th><th>Reopen clicks</th><th>Doors lost</th><th>Best door held (average)</th></tr>";
+  st.groups.forEach(b=>{
+    h+="<tr"+(b.g===mine?' class="best"':"")+"><td>"+esc(b.name)+(b.g===mine?" (yours)":"")+"</td><td>"+b.n+"</td><td>"+fmt(b.score/b.n)+"</td><td>"+(b.chest?Math.round(100*b.best/b.chest)+"%":"–")+"</td><td>"+
+       fmt(b.reopens/b.n)+"</td><td>"+fmt(b.locked/b.n)+"</td><td>"+fmt(b.bm/b.n)+"</td></tr>";
+  });
+  return h;
+}
+// With exactly two groups: how the second group's average score compares with the first's, in one sentence.
+function compareLine(st){
+  if(st.groups.length!==2) return "";
+  const a=st.groups[0], b=st.groups[1], sa=a.score/a.n, sb=b.score/b.n;
+  if(!(sa>0)) return "";
+  const pct=Math.round(1000*(sb/sa-1))/10;
+  return "“"+b.name+"” scored "+Math.abs(pct)+"% "+(pct>=0?"more":"less")+" than “"+a.name+"” on average ("+fmt(sb)+" against "+fmt(sa)+").";
+}
+function niceStep(x){ const p=Math.pow(10,Math.floor(Math.log10(x))), f=x/p; return Math.max(1,(f<=1?1:f<=2?2:f<=5?5:10)*p); }
+function histHTML(st){                      // one small histogram per group, all on the same score axis
+  const sc=st.rows.map(r=>r.score); if(!sc.length) return '<p class="hint">No finished games yet.</p>';
+  const lo=Math.min(...sc), hi=Math.max(...sc), step=niceStep((hi-lo)/10||1), start=Math.floor(lo/step)*step, nb=Math.floor((hi-start)/step)+1;
+  const counts=st.groups.map(b=>{ const c=Array(nb).fill(0); st.rows.forEach(r=>{ if((r.g|0)===b.g) c[Math.floor((r.score-start)/step)]++; }); return c; });
+  const top=Math.max(1,...counts.map(c=>Math.max(...c)));
+  let h="";
+  st.groups.forEach((b,gi)=>{
+    h+='<div class="hrow"><div class="hlab">'+esc(b.name)+'</div><div class="hbars">'+counts[gi].map((k,j)=>'<div class="hbar" style="height:'+(100*k/top)+'%" title="'+
+       (start+j*step)+" to "+(start+(j+1)*step-1)+" points: "+k+" player"+(k===1?"":"s")+'"></div>').join("")+"</div></div>";
+  });
+  return h+'<div class="haxis"><span>'+start+"</span><span>points</span><span>"+(start+nb*step)+"</span></div>";
+}
+
+/* ======================= teacher side ======================= */
+async function joinTeacher(rawCode,pass){
+  const code=cleanCode(rawCode);
+  if(!code) throw new Error("Type a session code (letters, numbers and dashes).");
+  if(pass!==TEACHER_PASSWORD) throw new Error("That isn't the teacher password.");
+  if(!fbInit()) throw new Error("Couldn't reach the game server. Check your connection and reload the page.");
+  const ref=db.ref(sessionPath(code));
+  if(!(await once(ref.child("meta"))).val()){                                  // a new code makes a new session
+    const base=loadSaved();                                                    // starting from the settings last used on this computer
+    await ref.set({meta:{round:1,set:1,try:1,dirty:false,status:"lobby",reveal:false,created:TS()}, config:{base, groups:GROUP_PRESETS.one}});
+  }
+  stopAll(); resetS(); game=null; if(ticker){ clearInterval(ticker); ticker=null; }
+  document.body.classList.remove("nohints","mockup");
+  Object.assign(S,{role:"teacher", code}); sref=ref; remember();
+  $("t-slot").appendChild($("settings-fields"));
+  listen(sref.child("meta"), v=>{
+    S.meta=v; if(!v) return;
+    if(roundKey!==v.round){ if(roundOff) roundOff(); roundKey=v.round; S.results={}; roundOff=listen(sref.child("rounds/r"+v.round), x=>{ S.results=x||{}; renderTeacher(); }); }
+    renderTeacher();
+  });
+  listen(sref.child("config"), v=>{
+    S.config=normConfig(v);
+    if(!S.formLoaded){ S.formLoaded=true; fillForm(S.config.base); $("t-groups").value=groupsText(S.config.groups); }
+    renderTeacher();
+  });
+  listen(sref.child("players"), v=>{ S.players=v||{}; renderTeacher(); });
+  listen(sref.child("plays"), v=>{ S.plays=v||{}; renderTeacher(); });
+  show("teacher");
+}
+// Naming. Inside the database every game the class plays is a "play", numbered 1, 2, 3, ... (meta.round). What the teacher
+// sees is "Round S, try T": the round number goes up when new settings have been saved since the last play, and
+// otherwise the try number goes up. So three plays of the learning settings are Round 1, tries 1 to 3.
+function playInfo(k){
+  const p=(S.plays||{})["r"+k]; if(p) return p;
+  const m=S.meta||{}; return k===m.round ? {set:m.set||1, try:m.try||k} : {set:1, try:k};
+}
+function playLabel(k){ const p=playInfo(k); return "Round "+p.set+", try "+p.try; }
+function nextPlay(){ const m=S.meta; return m.dirty ? {set:(m.set||1)+1, try:1} : {set:m.set||1, try:(m.try||m.round)+1}; }
+function playsOfSet(set){ const out=[]; for(let k=1;k<=S.meta.round;k++) if(playInfo(k).set===set) out.push(k); return out; }
+function groupsText(g){ return "[\n"+g.map(x=>"  "+JSON.stringify(x)).join(",\n")+"\n]"; }
+function renderTeacher(){
+  if(S.role!=="teacher"||!S.meta||!S.config) return;
+  const m=S.meta, r=m.round, open=m.status==="open";
+  $("t-code").textContent=S.code;
+  $("t-url").textContent=(location.host+location.pathname).replace(/index\.html$/,"");
+  const lab=playLabel(r), nx=nextPlay(), nxLab="round "+nx.set+", try "+nx.try;
+  $("t-status").textContent = m.status==="lobby" ? lab+" hasn't started. Students who join see a waiting screen."
+    : open ? lab+" is open. "+(S.config.base.clockStartsOnClick!==false ? "The doors appeared for everyone together; each student's clock starts with their first click." : "Everyone is on the same clock; a student who joins now starts at once with whatever time is left.")
+    : lab+" has ended."+(m.reveal?" Students can see the results.":"")+(m.dirty ? " New settings are saved, so the next start begins round "+nx.set+"." : " Start again for another try with the same settings, or save new settings first to begin round "+((m.set||1)+1)+".");
+  $("t-main").textContent = m.status==="lobby" ? "Start "+lab.toLowerCase() : open ? "End "+lab.toLowerCase() : "Start "+nxLab;
+  $("t-reveal").textContent = m.reveal ? "Hide the results from students" : "Reveal the results to students";
+  $("t-shuffle").disabled=open; $("t-save").disabled=open;
+  if(open) $("t-set-note").textContent="Settings are locked while a round is open.";
+  else if($("t-set-note").textContent.indexOf("Saved.")!==0 || renderTeacher.lastStatus!==m.status+r) $("t-set-note").textContent="Pick a preset, then press Save. Saving also re-splits students across the groups at random.";
+  renderTeacher.lastStatus=m.status+r;
+  $("t-note").textContent="Reassigning groups is off while a round is open. Resetting removes every player and all results; the settings stay.";
+
+  // roster: everyone who joined, plus anyone with a result this round who has since left
+  const priv=$("t-private").checked, ids=[...new Set(Object.keys(S.players).concat(Object.keys(S.results)))];
+  const rows=ids.map(id=>{ const p=S.players[id], x=S.results[id]; return {id, p, x, name:(p||x).name||id, g:x?x.g|0:(p.g|0)}; }).sort((a,b)=>a.name.localeCompare(b.name));
+  let h='<tr><th>Player</th><th style="text-align:left">Progress</th>'+(priv?"<th>Group</th><th>Score</th><th>Reopen clicks</th><th>Doors lost</th>":"")+"<th></th></tr>", done=0, playing=0;
+  rows.forEach(o=>{
+    const x=o.x, frac=!x ? 0 : x.state==="done" ? 1 : x.tc>=99999 ? 0 : Math.min(1,x.t/Math.max(1,x.tc));
+    if(x && x.state==="done") done++; else if(x) playing++;
+    const label = !x ? "waiting" : x.state==="done" ? "done" : x.tc>=99999 ? x.t+" clicks" : x.t+" of "+x.tc;
+    h+="<tr><td>"+esc(o.name)+(o.p?"":" (left)")+'</td><td style="text-align:left"><span class="prog"><i style="width:'+(100*frac)+'%"></i></span>'+label+"</td>"+
+       (priv?"<td>"+esc(groupName(S.config,o.g))+"</td><td>"+(x?x.score:"–")+"</td><td>"+(x?x.reopens:"–")+"</td><td>"+(x?x.locked:"–")+"</td>":"")+
+       '<td><button class="x" type="button" data-pid="'+esc(o.id)+'" title="Remove this player" aria-label="Remove '+esc(o.name)+'">×</button></td></tr>';
+  });
+  $("t-roster").innerHTML=h;
+  $("t-count").textContent=rows.length+" player"+(rows.length===1?"":"s")+" joined · "+playing+" playing · "+done+" finished";
+
+  // results tab
+  // The Results tab can show any one try, or all the tries of a round pooled (the roster above always shows the current try).
+  const sel=$("r-round"), sig=r+"|"+JSON.stringify(S.plays||{})+"|"+(m.set||1)+"."+(m.try||r);
+  if(sel.dataset.sig!==sig){
+    sel.dataset.sig=sig; sel.innerHTML="";
+    const add=(v,t)=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; sel.appendChild(o); };
+    for(let set=playInfo(r).set; set>=1; set--){
+      const ks=playsOfSet(set); if(!ks.length) continue;
+      if(ks.length>1) add("s"+set,"Round "+set+", all "+ks.length+" tries together");
+      ks.slice().reverse().forEach(k=>add("p"+k, playLabel(k)+(k===r?" (current)":"")));
+    }
+    S.view=null; S.viewResults={}; if(viewOff){ viewOff(); viewOff=null; }
+  }
+  const view=S.view||"p"+r; sel.value=view;
+  let shown;
+  if(view==="p"+r) shown=S.results;
+  else if(view[0]==="p") shown=S.viewResults;
+  else{ shown={}; playsOfSet(+view.slice(1)).forEach(k=>{ const src = k===r ? S.results : (S.viewResults["r"+k]||{}); Object.keys(src).forEach(id=>{ shown[k+"/"+id]=src[id]; }); }); }
+  const viewing = view[0]==="p" ? playLabel(+view.slice(1)).toLowerCase() : "round "+view.slice(1);
+  const st=groupStats(shown), n=st.rows.length, sum=k=>st.rows.reduce((a,x)=>a+x[k],0);
+  const tile=(k,v)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+"</div></div>";
+  $("r-tiles").innerHTML=tile("Finished",n)+tile("Average score",n?fmt(sum("score")/n):"–")+tile("Reopen clicks",n?fmt(sum("reopens")/n):"–")+tile("Doors lost",n?fmt(sum("locked")/n):"–");
+  $("r-groups").innerHTML = n ? groupTableHTML(st,-1) : '<tr><td>No finished games in '+viewing+" yet.</td></tr>";
+  $("r-compare").textContent = n ? compareLine(st) : "";
+  $("r-hist").innerHTML=histHTML(st);
+  // where the clicks went, with each player's doors ranked from their best to their worst
+  const nth=k=>k===1?"Best":k+(k===2?"nd":k===3?"rd":"th")+" best";
+  let dh="<tr><th>Group</th><th>Door, by true average</th><th>True average</th><th>Share of chest clicks</th><th>Points per chest click</th></tr>";
+  st.groups.forEach(b=>{
+    const ck=[], pt=[], mu=[], cnt=[];
+    st.rows.forEach(x=>{ if((x.g|0)!==b.g) return; arr(x.d).slice().sort((p,q)=>q.mu-p.mu).forEach((o,i)=>{ ck[i]=(ck[i]||0)+o.ck; pt[i]=(pt[i]||0)+o.pt; mu[i]=(mu[i]||0)+o.mu; cnt[i]=(cnt[i]||0)+1; }); });
+    const tot=ck.reduce((a,v)=>a+v,0);
+    ck.forEach((c,i)=>{ dh+="<tr><td>"+(i?"":esc(b.name))+"</td><td>"+nth(i+1)+"</td><td>"+fmt(mu[i]/cnt[i])+"</td><td>"+(tot?Math.round(100*c/tot)+"%":"–")+"</td><td>"+(c?fmt(pt[i]/c):"–")+"</td></tr>"; });
+  });
+  $("r-doors").innerHTML = n ? dh : "<tr><td>No finished games yet.</td></tr>";
+  const top=st.rows.slice().sort((a,b)=>b.score-a.score).slice(0,5);
+  $("r-top").innerHTML = $("t-top").checked ? top.map((x,i)=>"<tr><td>"+(i+1)+". "+esc(x.name)+"</td><td>"+x.score+"</td></tr>").join("") : "";
+}
+// The round timer in the teacher view, for the projector. With a time limit it counts down from the moment the round
+// opened (a student who joins late still gets the full limit on their own screen); without one it counts up.
+let serverOffset=0;
+let viewOff=null;
+function pickResultsRound(){
+  const v=$("r-round").value, r=S.meta.round;
+  if(viewOff){ viewOff(); viewOff=null; }
+  S.view=v; S.viewResults={};
+  if(v[0]==="p"){ const k=+v.slice(1); if(k!==r) viewOff=listen(sref.child("rounds/r"+k), x=>{ S.viewResults=x||{}; renderTeacher(); }); }
+  else{
+    const stops=playsOfSet(+v.slice(1)).filter(k=>k!==r).map(k=>listen(sref.child("rounds/r"+k), x=>{ S.viewResults["r"+k]=x||{}; renderTeacher(); }));
+    viewOff=()=>stops.forEach(f=>f());
+  }
+  renderTeacher();
+}
+function teacherClock(){
+  if(S.role!=="teacher"||!S.meta||!S.config) return;
+  const m=S.meta, lim=Math.max(0,...S.config.groups.map((g,i)=>groupCfg(S.config,i).timeLimit||0)); let k="Round time", txt="–", low=false;
+  if(m.status==="open" && m.started){
+    const el=(serverNow()-m.started)/1000;
+    if(el<0){ k="Starting in"; txt=String(Math.ceil(-el)); }
+    else if(lim>0){
+      k="Time left"; txt=clock(Math.ceil(Math.max(0,lim-el))); low=lim-el<=10;
+      // Time's up: end the round. If each student's clock starts on their own first click they finish a few seconds apart,
+      // so wait until nobody is still playing (but no longer than 20 seconds past the limit).
+      const perClick=S.config.base.clockStartsOnClick!==false, playing=Object.values(S.results).some(x=>x && x.state==="playing");
+      if((perClick ? (el>=lim+1 && !playing) || el>=lim+20 : el>=lim+1) && !teacherClock.closing){ teacherClock.closing=true; sref.child("meta").update({status:"closed",ended:TS()}).then(()=>{ teacherClock.closing=false; },()=>{ teacherClock.closing=false; }); }   // time's up for everyone: end the round
+    }
+    else txt=clock(el);
+  }
+  else if(m.status==="closed" && m.started && m.ended) txt=clock(Math.max(0,(m.ended-m.started)/1000));
+  if($("t-timer").textContent!==txt) $("t-timer").textContent=txt;
+  $("t-timer-k").textContent=k; $("t-timer").style.color = low ? "var(--warn)" : "";
+}
+setInterval(teacherClock,250);
+function teacherMain(){
+  const m=S.meta; if(!m) return;
+  const up={};
+  if(m.status==="lobby"){
+    const now={set:m.set||1, try:m.try||1};
+    Object.assign(up,{"meta/status":"open","meta/started":serverNow()+3000,"meta/set":now.set,"meta/try":now.try,"meta/dirty":false});   // 3-2-1, then everyone's doors appear together
+    up["plays/r"+m.round]=now;
+  }
+  else if(m.status==="open") Object.assign(up,{"meta/status":"closed","meta/ended":TS()});
+  else{                                                    // straight into the next play
+    const nx=nextPlay();
+    Object.assign(up,{"meta/status":"open","meta/round":m.round+1,"meta/set":nx.set,"meta/try":nx.try,"meta/dirty":false,"meta/reveal":false,"meta/started":serverNow()+3000,"meta/ended":null});
+    up["plays/r"+(m.round+1)]=nx;
+  }
+  sref.update(up);
+}
+function teacherSave(){
+  try{
+    const base=readForm(), groups=parseGroups($("t-groups").value,base);
+    // Saving also deals every student into the new groups at random, in proportion to the shares. Without this,
+    // everyone who joined while there was one group would land in the first arm of a two-arm round.
+    const up={config:{base,groups}}, fake={};
+    if(S.meta && S.meta.status==="closed") up["meta/dirty"]=true;      // new settings after a play: the next start is a new round
+    shuffle(Object.keys(S.players)).forEach(id=>{ const g=pickGroup({base,groups},fake); fake[id]={g}; up["players/"+id+"/g"]=g; });
+    sref.update(up).then(()=>{ $("t-set-note").textContent="Saved."+(groups.length>1 ? " Students were split at random across the "+groups.length+" groups." : ""); });
+    $("t-set-error").textContent="";
+  }catch(e){ $("t-set-error").textContent=e.message; }
+}
+function teacherReassign(){
+  if(!S.meta||S.meta.status==="open") return;
+  const fake={}, up={};
+  shuffle(Object.keys(S.players)).forEach(id=>{ const g=pickGroup(S.config,fake); fake[id]={g}; up["players/"+id+"/g"]=g; });
+  if(Object.keys(up).length) sref.update(up);
+}
+function teacherReset(){
+  if(!confirm("Remove every player and all results from session \""+S.code+"\"? The settings stay. This can't be undone.")) return;
+  sref.update({players:null, rounds:null, logs:null, plays:null, meta:{round:1,set:1,try:1,dirty:false,status:"lobby",reveal:false,created:TS()}});
+}
+function csvCell(x){ x=String(x==null?"":x); return /[",\n]/.test(x) ? '"'+x.replace(/"/g,'""')+'"' : x; }
+function saveCSV(name,rows){
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(csvCell).join(",")).join("\n")],{type:"text/csv"}));
+  a.download=name; document.body.appendChild(a); a.click(); a.remove();
+}
+async function downloadResults(){           // one row per player per round
+  const all=(await once(sref.child("rounds"))).val()||{}, recs=[]; let maxD=0;
+  const byPlay=(a,b)=>(+a.slice(1))-(+b.slice(1));
+  Object.keys(all).sort(byPlay).forEach(rk=>Object.keys(all[rk]).sort().forEach(pid=>{ const x=all[rk][pid]; recs.push([rk.slice(1),x]); maxD=Math.max(maxD,arr(x.d).length); }));
+  const head=["play","round","try","player","group","group_name","state","score","clicks_used","clicks_left","chest_clicks","reopen_clicks","doors_locked","seconds","end_reason","restarts",
+              "best_door_chest_clicks","best_door_true_mean","num_doors","total_clicks","n","m","ticks_per_click","ticks_per_second","stagger","time_limit","averages_shown"];
+  for(let k=1;k<=maxD;k++) head.push("rank"+k+"_true_mean","rank"+k+"_chest_clicks","rank"+k+"_points","rank"+k+"_reopen_clicks");   // rank 1 = that player's best door
+  const rows=[head].concat(recs.map(([rd,x])=>{
+    const row=[rd,x.rs||"",x.rt||"",x.name,(x.g|0)+1,x.gname,x.state,x.score,x.t,x.left,x.t-x.reopens,x.reopens,x.locked,x.elapsed,x.end,x.restarts,x.bestck,x.bm,x.nd,x.tc,x.n,x.m,x.ct,x.tps,x.sg,x.tl||0,x.sa||0];
+    const ds=arr(x.d).slice().sort((p,q)=>q.mu-p.mu);
+    for(let k=0;k<maxD;k++){ const o=ds[k]; if(o) row.push(o.mu,o.ck,o.pt,o.ro); else row.push("","","",""); }
+    return row;
+  }));
+  saveCSV("closing-time-"+S.code+"-results.csv",rows);
+}
+async function downloadClicks(){            // one row per click
+  const [ls,rs]=await Promise.all([once(sref.child("logs")), once(sref.child("rounds"))]), logs=ls.val()||{}, all=rs.val()||{};
+  const rows=[["play","round","try","player","group_name","click","seconds","door","door_true_mean","action","points","score","door_states"]];
+  Object.keys(logs).sort((a,b)=>(+a.slice(1))-(+b.slice(1))).forEach(rk=>Object.keys(logs[rk]).sort().forEach(pid=>{
+    const x=(all[rk]||{})[pid]||{};
+    String(logs[rk][pid]||"").split("\n").forEach(line=>{ if(line) rows.push([rk.slice(1), x.rs||"", x.rt||"", x.name||pid, x.gname||""].concat(line.split(","))); });
+  }));
+  saveCSV("closing-time-"+S.code+"-clicks.csv",rows);
+}
+
+/* ======================= join screen and start-up ======================= */
+let joinRole="student";
+function setJoinRole(role){
+  joinRole=role;
+  $("role-student").setAttribute("aria-pressed",role==="student"?"true":"false"); $("role-teacher").setAttribute("aria-pressed",role==="teacher"?"true":"false");
+  $("f-name").hidden=role!=="student"; $("f-pass").hidden=role!=="teacher";
+  $("btn-join").textContent = role==="teacher" ? "Open teacher view" : "Join";
+  $("join-error").textContent="";
+}
+function showJoin(msg){
+  $("solo-slot").appendChild($("settings-fields"));
+  try{ if(!$("j-name").value) $("j-name").value=localStorage.getItem("doorsGameName")||""; }catch(e){}
+  $("join-error").textContent=msg||"";
+  show("join");
+}
+async function submitJoin(){
+  const b=$("btn-join"); if(b.disabled) return;
+  b.disabled=true; $("join-error").textContent="";
+  try{
+    if(joinRole==="teacher"){ await joinTeacher($("j-code").value,$("j-pass").value); $("j-pass").value=""; }
+    else await joinStudent($("j-name").value,$("j-code").value);
+  }catch(e){ $("join-error").textContent=e.message||String(e); }
+  b.disabled=false;
+}
+$("join-form").addEventListener("submit",e=>{ e.preventDefault(); submitJoin(); });
+$("role-student").addEventListener("click",()=>setJoinRole("student"));
+$("role-teacher").addEventListener("click",()=>setJoinRole("teacher"));
+$("btn-leave1").addEventListener("click",leaveSession);
+$("btn-leave2").addEventListener("click",leaveSession);
+$("t-main").addEventListener("click",teacherMain);
+$("t-reveal").addEventListener("click",()=>{ if(S.meta) sref.child("meta/reveal").set(!S.meta.reveal); });
+$("t-private").addEventListener("change",renderTeacher);
+$("r-round").addEventListener("change",pickResultsRound);
+$("t-top").addEventListener("change",renderTeacher);
+$("t-save").addEventListener("click",teacherSave);
+$("t-shuffle").addEventListener("click",teacherReassign);
+$("t-reset").addEventListener("click",teacherReset);
+$("t-csv1").addEventListener("click",()=>downloadResults().catch(e=>alert(e.message)));
+$("t-csv2").addEventListener("click",()=>downloadClicks().catch(e=>alert(e.message)));
+$("t-exit").addEventListener("click",()=>leaveLocal(""));
+$("t-roster").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-pid]"); if(!b||!S.meta) return;
+  const id=b.dataset.pid; if(!confirm("Remove "+((S.players[id]||S.results[id]||{}).name||id)+" from the session?")) return;
+  const up={}; up["players/"+id]=null; up["rounds/r"+S.meta.round+"/"+id]=null; sref.update(up);
+});
+document.querySelectorAll("#teacher .tabs .skin").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll("#teacher .tabs .skin").forEach(o=>o.setAttribute("aria-pressed",o===b?"true":"false"));
+  ["run","results","settings"].forEach(t=>$("tab-"+t).classList.toggle("on",t===b.dataset.tab));
+}));
+document.querySelectorAll("[data-preset]").forEach(b=>b.addEventListener("click",()=>{ $("t-groups").value=groupsText(GROUP_PRESETS[b.dataset.preset]); }));
+
+// What the address asks for:
+//   (nothing)   the join screen: students and the teacher come in here
+//   ?solo       the one-player test version, with the settings panel
+//   ?play       a one-player game that starts at once, with the saved settings (plus any ?n=, ?m=, ?limit=, ... in the address);
+//               add &preset=few&group=2 to play one arm of a groups preset (here: the 12-door arm of round 2)
+//   ?mockup=8   a frozen mid-game picture with 8 doors
+{
+  const q=new URLSearchParams(location.search);
+  if(q.has("mockup")){ try{ if(q.has("clean")) document.body.classList.add("clean"); cfg=readForm(); showMockup(parseInt(q.get("mockup"),10)||8); }catch(e){ show("setup"); } }
+  else if(q.has("play")){
+    try{
+      cfg=readForm();
+      if(GROUP_PRESETS[q.get("preset")]) cfg=groupCfg({base:cfg, groups:GROUP_PRESETS[q.get("preset")]}, (parseInt(q.get("group"),10)||1)-1);   // one arm of a preset
+      startGame();
+    }catch(e){ show("setup"); }
+  }
+  else if(q.has("solo")) show("setup");
+  else{
+    showJoin("");
+    let saved=null; try{ saved=JSON.parse(sessionStorage.getItem("doorsGameSession")||"null"); }catch(e){}
+    if(saved && saved.code){                                   // a reload puts you back where you were
+      $("j-code").value=saved.code;
+      if(saved.role==="teacher"){ setJoinRole("teacher"); joinTeacher(saved.code,TEACHER_PASSWORD).catch(e=>{ $("join-error").textContent=e.message; }); }
+      else if(saved.name){ $("j-name").value=saved.name; joinStudent(saved.name,saved.code).catch(e=>{ $("join-error").textContent=e.message; }); }
+    }
+  }
+}
+</script>
+</body>
+</html>
