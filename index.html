@@ -50,6 +50,9 @@ summary{cursor:pointer;font-weight:800}
 .stat[hidden]{display:none}
 .roundtag{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin:0 0 8px 4px}
 .roundtag[hidden]{display:none}
+#end.bare .card{display:none}
+#end.bare .row{margin-top:18px}
+.vertag{text-align:center;font-size:12px;font-weight:400;color:var(--muted);opacity:.75;margin:18px 0 0}
 .stat.low .v{color:var(--warn)}
 .stat .k{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .stat .v{font-size:38px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
@@ -316,6 +319,7 @@ body.nohints .status{min-height:0}
       <button class="go" id="btn-join" type="submit">Join</button>
     </form>
   </div>
+  <p class="vertag" id="join-ver"></p>
 </div>
 
 <!-- ================= WAITING ================= -->
@@ -1086,8 +1090,9 @@ function fmt(x){ return (Math.round(x*10)/10).toLocaleString(undefined,{maximumF
 function showEnd(){
   if(!game) return;
   if(classEnd()) return;                                   // in a class session the end screen is drawn from the saved result
-  setEndButtons(false); $("end-class").hidden=true; $("end-who").textContent="Your score"; $("end-title").textContent=PRACTICE ? "Practice: finished" : "Finished";
-  const reveal=!PRACTICE;                                  // practice shows your own numbers only: no true averages, no settings
+  setEndButtons(false); $("end-class").hidden=true; $("end-who").textContent="Your score"; $("end-title").textContent=PRACTICE ? "You scored "+game.score.toLocaleString() : "Finished";
+  const reveal=!PRACTICE;
+  $("end").classList.toggle("bare",PRACTICE);              // practice just ends: "You scored 431" and "Play again"; no summary, no table
   if(PRACTICE){ $("btn-settings").hidden=true; $("btn-csv").hidden=true; }
   const means=game.doors.map(d=>trueMean(d.spec)), best=Math.max(...means);
   const locked=game.doors.filter(d=>d.lockedAt!==null).length;
@@ -1184,7 +1189,8 @@ const GROUP_PRESETS={
 
 // The plan for the class: round 1 uses PLAN[0], round 2 uses PLAN[1], and so on. On the "Run the game" tab, once a round's
 // planned tries are done, the main button loads the next round's preset, re-splits the students, and starts it in one press.
-const VERSION="Nov 23, version 8";            // shown at the bottom of the teacher view, to tell at a glance whether a browser has the latest page
+const VERSION="Nov 23, version 9";            // shown in small grey type on the opening page and at the bottom of the teacher view: which page this browser has
+document.getElementById("join-ver").textContent=VERSION;
 const PLAN=["r1","few","avg","money"];
 const PRESET_TITLES={r1:"learning, 3 doors", few:"6 doors vs. 12 doors", avg:"9 doors, averages hidden vs. shown", money:"the money round"};
 let db=null, sref=null, offs=[], roundOff=null, roundKey=null;
