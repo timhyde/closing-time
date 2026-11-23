@@ -1189,7 +1189,7 @@ const GROUP_PRESETS={
 
 // The plan for the class: round 1 uses PLAN[0], round 2 uses PLAN[1], and so on. On the "Run the game" tab, once a round's
 // planned tries are done, the main button loads the next round's preset, re-splits the students, and starts it in one press.
-const VERSION="Nov 23, version 10";            // shown in small grey type on the opening page and at the bottom of the teacher view: which page this browser has
+const VERSION="Nov 23, version 11";            // shown in small grey type on the opening page and at the bottom of the teacher view: which page this browser has
 document.getElementById("join-ver").textContent=VERSION;
 const PLAN=["r1","few","avg","money"];
 const PRESET_TITLES={r1:"learning, 3 doors", few:"6 doors vs. 12 doors", avg:"9 doors, averages hidden vs. shown", money:"the money round"};
@@ -1547,17 +1547,18 @@ function renderTeacher(){
   $("t-url").textContent=(location.host+location.pathname).replace(/index\.html$/,"");
   // "try 2 of 3": the settings say how many tries of a round are planned. After the last one, the teacher view says to
   // load the next round rather than inviting another try (an extra try is still one press away).
-  const plan=Math.max(1,...S.config.groups.map((g,i)=>groupCfg(S.config,i).tries||1));
+  const fresh=planStart(m);                              // nothing played yet: the start button loads round 1's own settings
+  const plan=Math.max(1,...(fresh ? GROUP_PRESETS[PLAN[0]].map(g=>g.tries||1) : S.config.groups.map((g,i)=>groupCfg(S.config,i).tries||1)));
   const cur=playInfo(r), nx=nextPlay(), lab="Round "+cur.set+", try "+cur.try+(m.dirty||cur.try>plan ? "" : " of "+plan);
   const lastTry=!m.dirty && cur.try>=plan, nextKey=lastTry ? PLAN[cur.set] : null;      // the preset for round cur.set+1, if the plan has one
-  $("t-status").textContent = m.status==="lobby" ? lab+" hasn't started. Students who join see a waiting screen."
+  $("t-status").textContent = m.status==="lobby" ? lab+" hasn't started. Students who join see a waiting screen."+(fresh ? " The button below loads round 1 ("+PRESET_TITLES[PLAN[0]]+") and starts it." : "")
     : open ? lab+" is open. "+(S.config.base.clockStartsOnClick!==false ? "The doors appeared for everyone together; each student's clock starts with their first click." : "Everyone is on the same clock; a student who joins now starts at once with whatever time is left.")
     : "Round "+cur.set+", try "+cur.try+" has ended."+(m.reveal?" Students can see the results.":"")+
       (m.dirty ? " The next round's settings are saved. Press start when you're ready."
        : nextKey ? " That was the last try of round "+cur.set+". The button below loads round "+(cur.set+1)+" ("+PRESET_TITLES[nextKey]+"), splits the students, and starts it."
        : lastTry ? " That was the last planned round. For anything more, choose settings on the Settings tab and save them."
        : " Press start for try "+nx.try+" of "+plan+".");
-  $("t-main").textContent = m.status==="lobby" ? "Start "+lab.toLowerCase() : open ? "End round "+cur.set+", try "+cur.try
+  $("t-main").textContent = m.status==="lobby" ? (fresh ? "Start round 1: "+PRESET_TITLES[PLAN[0]] : "Start "+lab.toLowerCase()) : open ? "End round "+cur.set+", try "+cur.try
     : m.dirty ? "Start round "+nx.set+", try 1" : nextKey ? "Start round "+(cur.set+1)+": "+PRESET_TITLES[nextKey]
     : lastTry ? "Extra try: start round "+nx.set+", try "+nx.try : "Start round "+nx.set+", try "+nx.try+" of "+plan;
   $("t-main").className = (m.status==="closed" && lastTry && !nextKey) ? "plain" : "go";
@@ -1568,7 +1569,7 @@ function renderTeacher(){
   if(open) $("t-set-note").textContent="Settings are locked while a round is open.";
   else if($("t-set-note").textContent.indexOf("Saved.")!==0 || renderTeacher.lastStatus!==m.status+r) $("t-set-note").textContent="Pick a preset, then press Save. Saving also re-splits students across the groups at random.";
   renderTeacher.lastStatus=m.status+r;
-  $("t-note").textContent="Reassigning groups is off while a round is open. Resetting removes every player and all results; the settings stay. Page: "+VERSION+".";
+  $("t-note").textContent="Reassigning groups is off while a round is open. Resetting removes every player and all results and goes back to round 1. Page: "+VERSION+".";
 
   // roster: everyone who joined, plus anyone with a result this round who has since left
   const priv=$("t-private").checked, ids=[...new Set(Object.keys(S.players).concat(Object.keys(S.results)))];
@@ -1701,11 +1702,22 @@ function teacherClock(){
   $("t-timer-k").textContent=k; $("t-timer").style.color = low ? "var(--warn)" : "";
 }
 setInterval(teacherClock,250);
+// True before anything has been played in a session, unless the teacher has saved settings of their own in the meantime.
+// Round 1 of the plan then starts from its own preset, whatever settings the session was left with (a reset session used
+// to keep the last round's groups, so "round 1" could come up with 6 and 12 doors).
+function planStart(m){ return !!m && m.status==="lobby" && !m.custom && (m.round||1)===1 && (m.set||1)===1 && (m.try||1)===1 && !!GROUP_PRESETS[PLAN[0]]; }
+function planConfig(key){ const base=S.config.base; return {base, groups:parseGroups(groupsText(GROUP_PRESETS[key]),base)}; }
 function teacherMain(extra){
   const m=S.meta; if(!m) return;
   const up={};
   if(m.status==="lobby"){
     const now={set:m.set||1, try:m.try||1};
+    if(planStart(m)){
+      const c=planConfig(PLAN[0]), fake={};
+      up.config=c;
+      shuffle(Object.keys(S.players||{})).forEach(id=>{ const g=pickGroup(c,fake); fake[id]={g}; up["players/"+id+"/g"]=g; });
+      $("t-groups").value=groupsText(c.groups);
+    }
     Object.assign(up,{"meta/status":"open","meta/started":serverNow()+3000,"meta/set":now.set,"meta/try":now.try,"meta/dirty":false});   // 3-2-1, then everyone's doors appear together
     up["plays/r"+m.round]=now;
   }
@@ -1733,6 +1745,7 @@ function teacherSave(){
     // everyone who joined while there was one group would land in the first arm of a two-arm round.
     const up={config:{base,groups}}, fake={};
     if(S.meta && S.meta.status==="closed") up["meta/dirty"]=true;      // new settings after a play: the next start is a new round
+    if(S.meta && S.meta.status==="lobby") up["meta/custom"]=true;      // the teacher's own settings before anything is played: round 1 uses them as saved
     shuffle(Object.keys(S.players)).forEach(id=>{ const g=pickGroup({base,groups},fake); fake[id]={g}; up["players/"+id+"/g"]=g; });
     sref.update(up).then(()=>{ $("t-set-note").textContent="Saved."+(groups.length>1 ? " Students were split at random across the "+groups.length+" groups." : ""); });
     $("t-set-error").textContent="";
@@ -1745,8 +1758,10 @@ function teacherReassign(){
   if(Object.keys(up).length) sref.update(up);
 }
 function teacherReset(){
-  if(!confirm("Remove every player and all results from session \""+S.code+"\"? The settings stay. This can't be undone.")) return;
-  sref.update({players:null, rounds:null, logs:null, plays:null, meta:{round:1,set:1,try:1,dirty:false,status:"lobby",reveal:false,created:TS()}});
+  if(!confirm("Remove every player and all results from session \""+S.code+"\" and go back to round 1? This can't be undone.")) return;
+  const c=planConfig(PLAN[0]);                              // back to round 1 of the plan, with round 1's settings
+  $("t-groups").value=groupsText(c.groups);
+  sref.update({players:null, rounds:null, logs:null, plays:null, config:c, meta:{round:1,set:1,try:1,dirty:false,status:"lobby",reveal:false,created:TS()}});
 }
 function csvCell(x){ x=String(x==null?"":x); return /[",\n]/.test(x) ? '"'+x.replace(/"/g,'""')+'"' : x; }
 function saveCSV(name,rows){
