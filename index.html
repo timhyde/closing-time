@@ -342,7 +342,7 @@ body.nohints .status{min-height:0}
     <div id="solo-slot"><div id="settings-fields">
       <div style="font-weight:800">Settings</div>
       <div class="grid">
-        <label>Look and sounds <select id="s-theme"></select></label>
+        <label>Theme and sounds <select id="s-theme"></select></label>
         <label>Number of doors <input type="number" id="s-doors" min="1" max="12"></label>
         <label>Clicks available <input type="number" id="s-clicks" min="1"></label>
         <label>Time limit in seconds (0 = none) <input type="number" id="s-limit" min="0" step="any"></label>
@@ -383,7 +383,7 @@ body.nohints .status{min-height:0}
   <div class="bar" aria-hidden="true"><i id="hud-bar"></i></div>
   <div id="msg" aria-live="polite"></div>
   <div class="doors" id="doors"></div>
-  <div id="skinbar" role="group" aria-label="Choose a look"><span class="skinlabel">Look:</span><span id="skins"></span>
+  <div id="skinbar" role="group" aria-label="Choose a theme"><span class="skinlabel">Theme:</span><span id="skins"></span>
     <button class="skin" id="btn-sound" type="button" aria-pressed="true">Sound: on</button></div>
   <div id="mock-note">Preview only. This screen isn't a live game. <a href="?" style="color:inherit">Play the real thing</a></div>
 </div>
@@ -1189,7 +1189,7 @@ const GROUP_PRESETS={
 
 // The plan for the class: round 1 uses PLAN[0], round 2 uses PLAN[1], and so on. On the "Run the game" tab, once a round's
 // planned tries are done, the main button loads the next round's preset, re-splits the students, and starts it in one press.
-const VERSION="Nov 23, version 9";            // shown in small grey type on the opening page and at the bottom of the teacher view: which page this browser has
+const VERSION="Nov 23, version 10";            // shown in small grey type on the opening page and at the bottom of the teacher view: which page this browser has
 document.getElementById("join-ver").textContent=VERSION;
 const PLAN=["r1","few","avg","money"];
 const PRESET_TITLES={r1:"learning, 3 doors", few:"6 doors vs. 12 doors", avg:"9 doors, averages hidden vs. shown", money:"the money round"};
