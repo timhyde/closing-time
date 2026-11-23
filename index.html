@@ -48,6 +48,8 @@ summary{cursor:pointer;font-weight:800}
 .hud{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px}
 .stat{flex:1 1 160px;background:var(--card);border:3px solid var(--outline);border-radius:22px;padding:8px 18px;box-shadow:0 5px 0 var(--outline)}
 .stat[hidden]{display:none}
+.roundtag{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin:0 0 8px 4px}
+.roundtag[hidden]{display:none}
 .stat.low .v{color:var(--warn)}
 .stat .k{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .stat .v{font-size:38px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
@@ -322,7 +324,6 @@ body.nohints .status{min-height:0}
   <div class="card narrow">
     <div class="waitbig" id="wait-msg">Waiting for the game to start…</div>
     <p class="hint" id="wait-who"></p>
-    <div class="row center"><button class="plain" id="btn-leave1" type="button">Leave session</button></div>
   </div>
 </div>
 
@@ -369,6 +370,7 @@ body.nohints .status{min-height:0}
 
 <!-- ================= GAME ================= -->
 <div id="game" class="screen">
+  <div class="roundtag" id="hud-round" hidden></div>
   <div class="hud">
     <div class="stat" id="stat-clicks"><div class="k">Clicks left</div><div class="v" id="hud-clicks">0</div></div>
     <div class="stat"><div class="k">Points</div><div class="v" id="hud-score">0</div></div>
@@ -384,7 +386,7 @@ body.nohints .status{min-height:0}
 
 <!-- ================= END ================= -->
 <div id="end" class="screen">
-  <h1>Game over</h1>
+  <h1 id="end-title">Finished</h1>
   <div class="card">
     <div class="hint" style="margin:0" id="end-who">Your score</div>
     <div class="big" id="end-score">0</div>
@@ -399,7 +401,6 @@ body.nohints .status{min-height:0}
     <button class="go" id="btn-again" type="button">Play again</button>
     <button class="plain" id="btn-settings" type="button">Change settings</button>
     <button class="plain" id="btn-csv" type="button">Download my click log (CSV)</button>
-    <button class="plain" id="btn-leave2" type="button" hidden>Leave session</button>
   </div>
 </div>
 
@@ -1042,7 +1043,7 @@ function onDoor(i){
   pushResult(false);
   if(game.over) endSoon();
 }
-let currentScreen="";
+let currentScreen="", PRACTICE=false;
 function show(id){ ["join","wait","setup","game","end","teacher"].forEach(s=>$(s).classList.toggle("on",s===id)); if(id!==currentScreen){ currentScreen=id; window.scrollTo(0,0); } }
 function startGame(){
   if(ticker) clearInterval(ticker);
@@ -1050,6 +1051,7 @@ function startGame(){
   document.body.classList.toggle("nohints", !cfg.showHints);
   applyTheme(cfg.theme);
   game=newGame(cfg); buildDoors(); render(); lastSig=screenSig();
+  $("hud-round").hidden=!PRACTICE; if(PRACTICE) $("hud-round").textContent="Practice";   // a class game puts its round label here (startClassGame)
   $("msg").textContent="Click a chest to begin."+(cfg.ticksPerSecond>0 ? " The timer starts with your first click." : "");
   show("game");
   lastNow=performance.now(); ticker=setInterval(tick,50);
@@ -1084,20 +1086,22 @@ function fmt(x){ return (Math.round(x*10)/10).toLocaleString(undefined,{maximumF
 function showEnd(){
   if(!game) return;
   if(classEnd()) return;                                   // in a class session the end screen is drawn from the saved result
-  setEndButtons(false); $("end-class").hidden=true; $("end-who").textContent="Your score";
+  setEndButtons(false); $("end-class").hidden=true; $("end-who").textContent="Your score"; $("end-title").textContent=PRACTICE ? "Practice: finished" : "Finished";
+  const reveal=!PRACTICE;                                  // practice shows your own numbers only: no true averages, no settings
+  if(PRACTICE){ $("btn-settings").hidden=true; $("btn-csv").hidden=true; }
   const means=game.doors.map(d=>trueMean(d.spec)), best=Math.max(...means);
   const locked=game.doors.filter(d=>d.lockedAt!==null).length;
   $("end-score").textContent=game.score.toLocaleString();
   $("end-summary").textContent="You used "+game.t+" click"+(game.t===1?"":"s")+" in "+clock(game.elapsed)+": "+(game.t-game.reopens)+" on chests and "+game.reopens+" reopening doors. "+
       (game.endReason==="locked" ? "Every door locked with "+game.clicksLeft+" click"+(game.clicksLeft===1?"":"s")+" unused." :
        (game.endReason==="time" && cfg.totalClicks<99999 ? "Time ran out with "+game.clicksLeft+" click"+(game.clicksLeft===1?"":"s")+" unused. " : game.endReason==="time" ? "Time ran out. " : "")+locked+" of "+cfg.numDoors+" doors locked.");
-  let h="<tr><th>Door</th><th>Chest clicks</th><th>Reopen clicks</th><th>Your points</th><th>Your average</th><th>True average</th><th>At the end</th></tr>";
+  let h="<tr><th>Door</th><th>Chest clicks</th><th>Reopen clicks</th><th>Your points</th><th>Your average</th>"+(reveal?"<th>True average</th>":"")+"<th>At the end</th></tr>";
   game.doors.forEach((d,i)=>{
-    h+='<tr class="'+(means[i]===best?"best":"")+'"><td>Door '+(i+1)+(means[i]===best?" (best)":"")+"</td><td>"+d.chestClicks+"</td><td>"+d.reopens+"</td><td>"+d.points.toLocaleString()+
-       "</td><td>"+(d.chestClicks?fmt(d.points/d.chestClicks):"–")+"</td><td>"+fmt(means[i])+"</td><td>"+(d.lockedAt!==null?(cfg.ticksPerSecond>0?"Locked at "+clock(d.lockedSec):"Locked at click "+d.lockedAt):doorState(d,cfg).state==="closing"?"Closing":"Open")+"</td></tr>";
+    h+='<tr class="'+(reveal && means[i]===best?"best":"")+'"><td>Door '+(i+1)+(reveal && means[i]===best?" (best)":"")+"</td><td>"+d.chestClicks+"</td><td>"+d.reopens+"</td><td>"+d.points.toLocaleString()+
+       "</td><td>"+(d.chestClicks?fmt(d.points/d.chestClicks):"–")+"</td>"+(reveal?"<td>"+fmt(means[i])+"</td>":"")+"<td>"+(d.lockedAt!==null?(cfg.ticksPerSecond>0?"Locked at "+clock(d.lockedSec):"Locked at click "+d.lockedAt):doorState(d,cfg).state==="closing"?"Closing":"Open")+"</td></tr>";
   });
   $("end-table").innerHTML=h;
-  $("end-bench").textContent="Spending all "+cfg.totalClicks+" clicks on the best door would have earned about "+fmt(best*cfg.totalClicks)+" points on average.";
+  $("end-bench").textContent=reveal ? "Spending all "+cfg.totalClicks+" clicks on the best door would have earned about "+fmt(best*cfg.totalClicks)+" points on average." : "";
   show("end"); sfx("fanfare");
 }
 function downloadCSV(){
@@ -1180,7 +1184,7 @@ const GROUP_PRESETS={
 
 // The plan for the class: round 1 uses PLAN[0], round 2 uses PLAN[1], and so on. On the "Run the game" tab, once a round's
 // planned tries are done, the main button loads the next round's preset, re-splits the students, and starts it in one press.
-const VERSION="Nov 19, version 7";            // shown at the bottom of the teacher view, to tell at a glance whether a browser has the latest page
+const VERSION="Nov 23, version 8";            // shown at the bottom of the teacher view, to tell at a glance whether a browser has the latest page
 const PLAN=["r1","few","avg","money"];
 const PRESET_TITLES={r1:"learning, 3 doors", few:"6 doors vs. 12 doors", avg:"9 doors, averages hidden vs. shown", money:"the money round"};
 let db=null, sref=null, offs=[], roundOff=null, roundKey=null;
@@ -1339,6 +1343,10 @@ const saveKey=r=>"doorsGameSave:"+S.code+":"+r+":"+S.pid;
 function saveLocal(){ try{ localStorage.setItem(saveKey(S.playRound), JSON.stringify({at:Date.now(), cfg, game})); }catch(e){} }
 function loadLocal(r){ try{ const v=JSON.parse(localStorage.getItem(saveKey(r))||"null"); return v && v.game && v.cfg ? v : null; }catch(e){ return null; } }
 function clearLocal(keep){ try{ Object.keys(localStorage).forEach(k=>{ if(k.indexOf("doorsGameSave:")===0 && k!==keep) localStorage.removeItem(k); }); }catch(e){} }
+// What the class plan calls the play a student is in: "Round 2, try 1 of 2" ("Round 4" when the round has a single
+// try; no "of N" when the teacher has gone outside the plan).
+function roundLabel(set,tr,of){ return "Round "+set+(of===1 && tr===1 ? "" : ", try "+tr+(of>1 && tr<=of ? " of "+of : "")); }
+function plannedTries(){ return S.meta.dirty ? 0 : (cfg.tries|0); }
 function startClassGame(){
   const saved=S.resume; S.resume=null;
   cfg = saved ? saved.cfg : groupCfg(S.config,S.me.g);
@@ -1346,6 +1354,7 @@ function startClassGame(){
   S.playRound=S.meta.round;
   clearLocal(saveKey(S.playRound));
   startGame();
+  $("hud-round").textContent=roundLabel(S.meta.set||1, S.meta.try||S.meta.round, plannedTries()); $("hud-round").hidden=false;   // reassurance: which round this is
   if(saved){                                               // the clock kept running while the page was away
     game=saved.game; game.cfg=cfg; game.ending=false;
     buildDoors(); if(game.clock===undefined) game.clock=0; advanceTime(game,Math.max(0,(Date.now()-saved.at)/1000)); render(); lastSig=screenSig();
@@ -1368,7 +1377,7 @@ function buildSummary(){
   return {name:S.name, g:game.g|0, gname:game.gname||"", state:game.over?"done":"playing", round:S.playRound,
           score:game.score, t:game.t, left:game.clicksLeft, reopens:game.reopens, locked:d.filter(x=>x.lk>=0).length,
           elapsed:Math.round(game.elapsed*10)/10, end:game.endReason||"", restarts:S.restarts||0,
-          nd:cfg.numDoors, tc:cfg.totalClicks, n:cfg.n, m:cfg.m, ct:cfg.clickTicks, tps:cfg.ticksPerSecond, sg:cfg.stagger, tl:cfg.timeLimit||0, sa:cfg.showAverages?1:0, rs:S.meta.set||1, rt:S.meta.try||S.meta.round,
+          nd:cfg.numDoors, tc:cfg.totalClicks, n:cfg.n, m:cfg.m, ct:cfg.clickTicks, tps:cfg.ticksPerSecond, sg:cfg.stagger, tl:cfg.timeLimit||0, sa:cfg.showAverages?1:0, rs:S.meta.set||1, rt:S.meta.try||S.meta.round, nt:plannedTries(),
           bestck:d.reduce((a,x)=>a+(x.mu===best?x.ck:0),0), bm:best, d, u:TS()};
 }
 let pushTimer=null, lastPush=0;
@@ -1394,11 +1403,12 @@ function classEnd(){
   return true;
 }
 function setEndButtons(inClass){
-  $("btn-again").hidden=inClass; $("btn-settings").hidden=inClass; $("btn-csv").hidden=inClass; $("btn-leave2").hidden=!inClass;
+  $("btn-again").hidden=inClass; $("btn-settings").hidden=inClass; $("btn-csv").hidden=inClass;
 }
 function showClassEnd(){
   const sm=S.summary, reveal=!!S.meta.reveal, d=arr(sm.d);
   const best=Math.max(...d.map(x=>x.mu));
+  $("end-title").textContent=roundLabel(sm.rs||1, sm.rt||1, sm.nt||0)+": finished";
   $("end-who").textContent="Score for "+sm.name;
   $("end-score").textContent=Number(sm.score).toLocaleString();
   $("end-summary").textContent="You used "+sm.t+" click"+(sm.t===1?"":"s")+": "+(sm.t-sm.reopens)+" on chests and "+sm.reopens+" reopening doors. "+
@@ -1442,11 +1452,6 @@ function leaveLocal(msg){
   document.body.classList.remove("nohints","mockup");
   showJoin(msg);
 }
-function leaveSession(){                    // "Leave session": take this student's node out of the session
-  const ref=sref, pid=S.pid, r=S.meta&&S.meta.round, finished=!!(S.summary && S.summary.round===r);
-  clearLocal(); leaveLocal("");
-  if(ref && pid){ ref.child("players/"+pid).remove().catch(()=>{}); if(!finished && r!=null) ref.child("rounds/r"+r+"/"+pid).remove().catch(()=>{}); }
-}
 window.addEventListener("pagehide",()=>{ if(game && !game.over) pushResult(true); });
 
 /* ======================= results (used by the teacher view and by students after the reveal) ======================= */
@@ -1460,7 +1465,7 @@ function groupStats(results){               // finished games only
 }
 // One row per group, with the columns in the order (and with the names) of the fill-in tables on the slides.
 function groupTableHTML(st,mine){
-  let h="<tr><th>Group</th><th>Games played</th><th>Average score</th><th>Clicks on best door</th><th>Reopen clicks</th><th>Doors lost</th><th>Best door held (average)</th></tr>";
+  let h="<tr><th>Group</th><th>Games played</th><th>Average score</th><th>Clicks on best door</th><th>Reopen clicks</th><th>Doors lost</th><th>Best door available</th></tr>";
   st.groups.forEach(b=>{
     h+="<tr"+(b.g===mine?' class="best"':"")+"><td>"+esc(b.name)+(b.g===mine?" (yours)":"")+"</td><td>"+b.n+"</td><td>"+fmt(b.score/b.n)+"</td><td>"+(b.chest?Math.round(100*b.best/b.chest)+"%":"–")+"</td><td>"+
        fmt(b.reopens/b.n)+"</td><td>"+fmt(b.locked/b.n)+"</td><td>"+fmt(b.bm/b.n)+"</td></tr>";
@@ -1584,7 +1589,7 @@ function renderTeacher(){
     }
     const pool=set=>{ const o={}; playsOfSet(set).forEach(k=>{ const src = k===r ? S.results : ((S.slideData||{})["r"+k]||{}); Object.keys(src).forEach(id=>{ o[k+"/"+id]=src[id]; }); }); return o; };
     const asOne=o=>{ const out={}; Object.keys(o).forEach(id=>{ out[id]=Object.assign({},o[id],{g:0}); }); return groupStats(out).groups[0]; };   // everyone as a single row
-    const HEAD={held:"Best door held (average)", score:"Average score", best:"Clicks on best door", reopen:"Reopen clicks", lost:"Doors lost"};
+    const HEAD={held:"Best door available", score:"Average score", best:"Clicks on best door", reopen:"Reopen clicks", lost:"Doors lost"};
     const cell=(b,c)=> c==="score" ? fmt(b.score/b.n) : c==="best" ? (b.chest ? Math.round(100*b.best/b.chest)+"%" : "–") : c==="reopen" ? fmt(b.reopens/b.n) : c==="lost" ? fmt(b.locked/b.n) : fmt(b.bm/b.n);
     const here=groupStats(pool(cur.set));
     let cols=null, list=[], title="", cmp="";
@@ -1674,10 +1679,13 @@ function teacherClock(){
     const el=(serverNow()-m.started)/1000;
     if(el<0){ k="Starting in"; txt=String(Math.ceil(-el)); }
     else if(lim>0){
-      k="Time left"; txt=clock(Math.ceil(Math.max(0,lim-el))); low=lim-el<=10;
       // Time's up: end the round. If each student's clock starts on their own first click they finish a few seconds apart,
       // so wait until nobody is still playing (but no longer than 20 seconds past the limit).
-      const perClick=S.config.base.clockStartsOnClick!==false, playing=Object.values(S.results).some(x=>x && x.state==="playing");
+      const perClick=S.config.base.clockStartsOnClick!==false, nplay=Object.values(S.results).filter(x=>x && x.state==="playing").length, playing=nplay>0;
+      // This clock runs from the moment the doors appeared. With per-student clocks it counts down to the earliest
+      // moment anyone can finish; after that it shows how many students are still playing.
+      if(perClick && el>=lim && playing){ k="Still playing"; txt=String(nplay); }
+      else{ k=perClick ? "Earliest finish in" : "Time left"; txt=clock(Math.ceil(Math.max(0,lim-el))); low=lim-el<=10; }
       if((perClick ? (el>=lim+1 && !playing) || el>=lim+20 : el>=lim+1) && !teacherClock.closing){ teacherClock.closing=true; sref.child("meta").update({status:"closed",ended:TS()}).then(()=>{ teacherClock.closing=false; },()=>{ teacherClock.closing=false; }); }   // time's up for everyone: end the round
     }
     else txt=clock(el);
@@ -1791,8 +1799,6 @@ async function submitJoin(){
 $("join-form").addEventListener("submit",e=>{ e.preventDefault(); submitJoin(); });
 $("role-student").addEventListener("click",()=>setJoinRole("student"));
 $("role-teacher").addEventListener("click",()=>setJoinRole("teacher"));
-$("btn-leave1").addEventListener("click",leaveSession);
-$("btn-leave2").addEventListener("click",leaveSession);
 $("t-main").addEventListener("click",()=>teacherMain(false));
 $("t-extra").addEventListener("click",()=>teacherMain(true));
 $("t-reveal").addEventListener("click",()=>{ if(S.meta) sref.child("meta/reveal").set(!S.meta.reveal); });
@@ -1821,6 +1827,7 @@ document.querySelectorAll("[data-preset]").forEach(b=>b.addEventListener("click"
 //   ?solo       the one-player test version, with the settings panel
 //   ?play       a one-player game that starts at once, with the saved settings (plus any ?n=, ?m=, ?limit=, ... in the address);
 //               add &preset=few&group=2 to play one arm of a groups preset (here: the 12-door arm of round 2)
+//   ?practice   the sandbox for students before class: round 1's game with no session and no teacher; play it as often as you like
 //   ?mockup=8   a frozen mid-game picture with 8 doors
 {
   const q=new URLSearchParams(location.search);
@@ -1839,6 +1846,11 @@ document.querySelectorAll("[data-preset]").forEach(b=>b.addEventListener("click"
       if(GROUP_PRESETS[q.get("preset")]) cfg=groupCfg({base:cfg, groups:GROUP_PRESETS[q.get("preset")]}, (parseInt(q.get("group"),10)||1)-1);   // one arm of a preset
       startGame();
     }catch(e){ show("setup"); }
+  }
+  else if(q.has("practice")){                              // the before-class sandbox: round 1's game, alone; nothing explained, nothing revealed, nothing saved
+    cfg=groupCfg({base:JSON.parse(JSON.stringify(DEFAULTS)), groups:GROUP_PRESETS.r1}, 0);
+    try{ const k=localStorage.getItem("doorsGameSkin"); if(k && THEMES[k]) cfg.theme=k; }catch(e){}
+    PRACTICE=true; startGame();
   }
   else if(q.has("solo")) show("setup");
   else{
